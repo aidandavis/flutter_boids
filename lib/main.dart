@@ -38,18 +38,25 @@ class _MyHomePageState extends State<MyHomePage>
   int lastFrameTime = 0;
   int dt = 0;
 
-  double speed = 0.1;
+  double speed = 0.125;
+  double maxTurnSpeed = 0.05;
 
   double avoidanceArc = 4 / 3 * pi;
   double avoidanceDistance = 0.05;
+  double avoidanceWeight = 1;
 
   @override
   void initState() {
+    super.initState();
+
     _addBoids(20);
 
     createTicker(_tick)..start();
+  }
 
-    super.initState();
+  @override
+  void dispose() {
+    super.dispose();
   }
 
   _tick(Duration totalElapsedDuration) {
@@ -57,12 +64,19 @@ class _MyHomePageState extends State<MyHomePage>
     dt = totalElapsedDuration.inMicroseconds - lastFrameTime;
     lastFrameTime = totalElapsedDuration.inMicroseconds;
 
+    var ds = dt / 1000000;
+
+    if (ds == 0) {
+      ds = 0.0167;
+    }
+
     while (boids.length > boidLimit) {
       _removeBoids();
     }
 
     for (var boid in boids) {
-      boid.applyNextPosition(dt);
+      boid.readyForNextTick();
+      boid.applyNextPosition(ds);
     }
 
     setState(() {});
@@ -73,8 +87,10 @@ class _MyHomePageState extends State<MyHomePage>
       for (var i = 0; i < numToAdd; i++) {
         boids.add(Boid.createRandom(
           speed: speed,
+          maxTurnSpeed: maxTurnSpeed,
           avoidanceDistance: avoidanceDistance,
           avoidanceArc: avoidanceArc,
+          avoidanceWeight: avoidanceWeight,
         ));
       }
     });
@@ -150,27 +166,34 @@ class Boid {
   double _y;
   double _direction; // radians
 
+  double newDirection = 0.0; // for the next tick
+
   double speed;
+  double maxTurnSpeed; // how many radians per second this boid can turn
 
   double avoidanceDistance;
-
-  // in radians, centered on direction
-  double avoidanceArc;
+  double avoidanceArc; // in radians, centered on direction
+  double avoidanceWeight;
 
   Boid(
     this._x,
     this._y,
-    this._direction,
-    this.speed,
-    this.avoidanceArc,
-    this.avoidanceDistance,
-  );
+    this._direction, {
+    @required this.speed,
+    @required this.maxTurnSpeed,
+    @required this.avoidanceDistance,
+    @required this.avoidanceArc,
+    @required this.avoidanceWeight,
+  });
 
   /// create a boid with random velocity starting in the center
-  Boid.createRandom(
-      {this.speed = 10,
-      this.avoidanceArc = pi,
-      this.avoidanceDistance = 0.05}) {
+  Boid.createRandom({
+    @required this.speed,
+    @required this.maxTurnSpeed,
+    @required this.avoidanceDistance,
+    @required this.avoidanceArc,
+    @required this.avoidanceWeight,
+  }) {
     _x = 0.5;
     _y = 0.5;
 
@@ -179,12 +202,14 @@ class Boid {
 
   get position => Point<double>(_x, _y);
 
-  /// dt is microseconds
-  Point<double> nextPostion(int dt) {
-    final seconds = dt / 1000000;
+  void readyForNextTick() {
+    newDirection = 0.0;
+  }
 
-    var nextX = _x + (cos(_direction) * speed * seconds);
-    var nextY = _y + (sin(_direction) * speed * seconds);
+  /// dt is microseconds
+  Point<double> nextPostion(double ds) {
+    var nextX = _x + (cos(_direction) * speed * ds);
+    var nextY = _y + (sin(_direction) * speed * ds);
 
     // wrapping
     if (nextX > 1) {
@@ -203,11 +228,37 @@ class Boid {
     return Point(nextX, nextY);
   }
 
-  void applyNextPosition(int dt) {
-    final nextPosition = nextPostion(dt);
+  void applyNextPosition(double ds) {
+    if (newDirection.abs() > maxTurnSpeed) {
+      newDirection = newDirection.sign * maxTurnSpeed;
+    }
+
+    _direction += newDirection;
+
+    final nextPosition = nextPostion(ds);
 
     _x = nextPosition.x;
     _y = nextPosition.y;
+  }
+
+  void avoidOtherBoids(List<Boid> boids, double ds) {
+    var turnAmount = 0.0;
+
+    for (final boid in boids) {
+      // this boid will be part of the list
+      if (boid == this) {
+        continue;
+      }
+
+      final otherBoidNextPosition = boid.nextPostion(ds);
+
+      if (distanceToPoint(otherBoidNextPosition) < avoidanceDistance) {
+        final angleToOtherBoid =
+            atan2(otherBoidNextPosition.y - _y, otherBoidNextPosition.x - _x);
+      }
+    }
+
+    newDirection += turnAmount * avoidanceWeight;
   }
 
   double distanceToPoint(Point point) => position.distanceTo(point);
@@ -237,15 +288,35 @@ class BoidPainter extends CustomPainter {
       final boidOffset =
           Offset(boid.position.x * size.width, boid.position.y * size.height);
 
-      canvas.drawCircle(boidOffset, 3, Paint()..color = Colors.red);
+      canvas.drawCircle(boidOffset, 4, Paint()..color = Colors.red);
 
-      final avoidanceRect = Rect.fromCenter(
-        center: boidOffset,
-        width: avoidanceDistance * size.width,
-        height: avoidanceDistance * size.height,
-      );
+      _drawAvoidance(canvas, size, boid);
+    }
+  }
 
-      // left
+  void _drawAvoidance(Canvas canvas, Size size, Boid boid) {
+    final boidOffset =
+        Offset(boid.position.x * size.width, boid.position.y * size.height);
+
+    // avoidance
+    final avoidanceRect = Rect.fromCenter(
+      center: boidOffset,
+      width: avoidanceDistance * size.width,
+      height: avoidanceDistance * size.height,
+    );
+
+    // left
+    canvas.drawArc(
+      avoidanceRect,
+      boid._direction - boid.avoidanceArc / 2,
+      boid.avoidanceArc / 2,
+      true,
+      Paint()
+        ..color = Colors.blue
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    if (boid.newDirection.sign < 0) {
       canvas.drawArc(
         avoidanceRect,
         boid._direction - boid.avoidanceArc / 2,
@@ -253,10 +324,24 @@ class BoidPainter extends CustomPainter {
         true,
         Paint()
           ..color = Colors.blue
-          ..style = PaintingStyle.stroke,
+              .withOpacity(boid.newDirection.abs() / boid.maxTurnSpeed)
+          ..style = PaintingStyle.fill
+          ..strokeWidth = 2,
       );
+    }
 
-      // right
+    // right
+    canvas.drawArc(
+      avoidanceRect,
+      boid._direction,
+      boid.avoidanceArc / 2,
+      true,
+      Paint()
+        ..color = Colors.red
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+    if (boid.newDirection.sign > 0) {
       canvas.drawArc(
         avoidanceRect,
         boid._direction,
@@ -264,12 +349,10 @@ class BoidPainter extends CustomPainter {
         true,
         Paint()
           ..color = Colors.red
-          ..style = PaintingStyle.stroke,
+              .withOpacity(boid.newDirection.abs() / boid.maxTurnSpeed)
+          ..style = PaintingStyle.fill
+          ..strokeWidth = 2,
       );
-
-      // canvas.drawOval(Paint()
-      //   ..color = Colors.green
-      //   ..style = PaintingStyle.stroke);
     }
   }
 
