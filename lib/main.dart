@@ -38,7 +38,7 @@ class _MyHomePageState extends State<MyHomePage>
   int lastFrameTime = 0;
   int dt = 0;
 
-  double speed = 0.125;
+  double speed = 0.05;
   double maxTurnSpeed = 0.05;
 
   double avoidanceArc = 4 / 3 * pi;
@@ -76,6 +76,9 @@ class _MyHomePageState extends State<MyHomePage>
 
     for (var boid in boids) {
       boid.readyForNextTick();
+
+      boid.avoidOtherBoids(boids, ds);
+
       boid.applyNextPosition(ds);
     }
 
@@ -159,7 +162,6 @@ class _MyHomePageState extends State<MyHomePage>
 
 /// the boid
 /// position (x, y) will be 0 to 1, so will scale to viewport
-/// velocity will be in 0.01 units per second
 class Boid {
   //posistion
   double _x;
@@ -175,16 +177,7 @@ class Boid {
   double avoidanceArc; // in radians, centered on direction
   double avoidanceWeight;
 
-  Boid(
-    this._x,
-    this._y,
-    this._direction, {
-    @required this.speed,
-    @required this.maxTurnSpeed,
-    @required this.avoidanceDistance,
-    @required this.avoidanceArc,
-    @required this.avoidanceWeight,
-  });
+  List<Point> boidsToAvoid = [];
 
   /// create a boid with random velocity starting in the center
   Boid.createRandom({
@@ -204,6 +197,7 @@ class Boid {
 
   void readyForNextTick() {
     newDirection = 0.0;
+    boidsToAvoid.clear();
   }
 
   /// dt is microseconds
@@ -245,16 +239,26 @@ class Boid {
     var turnAmount = 0.0;
 
     for (final boid in boids) {
-      // this boid will be part of the list
+      // this boid will be part of the list, so skip it
       if (boid == this) {
         continue;
       }
 
       final otherBoidNextPosition = boid.nextPostion(ds);
 
+      // print(distanceToPoint(otherBoidNextPosition));
+
       if (distanceToPoint(otherBoidNextPosition) < avoidanceDistance) {
         final angleToOtherBoid =
             atan2(otherBoidNextPosition.y - _y, otherBoidNextPosition.x - _x);
+
+        // print(
+        //     '$angleToOtherBoid. ${_direction - avoidanceArc / 2}, ${_direction + avoidanceArc / 2}');
+
+        if (angleToOtherBoid >= _direction - avoidanceArc / 2 &&
+            angleToOtherBoid <= _direction + avoidanceArc / 2) {
+          boidsToAvoid.add(otherBoidNextPosition);
+        }
       }
     }
 
@@ -291,6 +295,18 @@ class BoidPainter extends CustomPainter {
       canvas.drawCircle(boidOffset, 4, Paint()..color = Colors.red);
 
       _drawAvoidance(canvas, size, boid);
+
+      for (final otherBoid in boid.boidsToAvoid) {
+        final otherBoidOffset =
+            Offset(otherBoid.x * size.width, otherBoid.y * size.height);
+        canvas.drawLine(
+          boidOffset,
+          otherBoidOffset,
+          Paint()
+            ..color = Colors.black
+            ..strokeWidth = 2,
+        );
+      }
     }
   }
 
