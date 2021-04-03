@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:math';
 
 void main() {
   runApp(MyApp());
@@ -25,52 +26,166 @@ class MyHomePage extends StatefulWidget {
   _MyHomePageState createState() => _MyHomePageState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  var mx = 0.0;
-  var my = 0.0;
+class _MyHomePageState extends State<MyHomePage>
+    with SingleTickerProviderStateMixin {
+  static const boidsPerOperation = 15;
+
+  // list of boids
+  final List<Boid> boids = [];
+
+  /// time of last frame in microseconds
+  int lastFrameTime = 0;
+  int fps;
+
+  @override
+  void initState() {
+    createTicker(_tick)..start();
+
+    _addBoids();
+
+    super.initState();
+  }
+
+  _tick(Duration totalElapsedDuration) {
+    int dt = totalElapsedDuration.inMicroseconds - lastFrameTime;
+    lastFrameTime = totalElapsedDuration.inMicroseconds;
+
+    if (dt == 0) {
+      dt = 1;
+    }
+
+    fps = 1000000 ~/ dt;
+
+    for (var boid in boids) {
+      boid.applyVelocity(dt);
+    }
+
+    setState(() {});
+  }
+
+  void _addBoids() {
+    this.setState(() {
+      for (var i = 0; i < boidsPerOperation; i++) {
+        boids.add(Boid.createRandom());
+      }
+    });
+  }
+
+  void _removeBoids() {
+    this.setState(() {
+      for (var i = 0; i < boidsPerOperation; i++) {
+        boids.removeAt(Random().nextInt(boids.length));
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    var screenSize = MediaQuery.of(context).size;
+    final screenSize = MediaQuery.of(context).size;
 
     return Scaffold(
-      body: MouseRegion(
-        onHover: (event) => setState(() {
-          mx = event.position.dx;
-          my = event.position.dy;
-        }),
-        child: Stack(
-          children: [
-            Positioned(
-              left: 2,
-              bottom: 2,
-              child: Text(
-                screenSize.toString(),
-                style: Theme.of(context).textTheme.headline4,
+      body: CustomPaint(
+        painter: BoidPainter(boids),
+        child: Container(
+          height: screenSize.height,
+          width: screenSize.width,
+          child: Stack(
+            children: [
+              Positioned(
+                child: Text('fps: ${fps ?? 0} (${boids.length})'),
               ),
-            ),
-            Positioned(
-              right: 2,
-              bottom: 2,
-              child: Text(
-                '$mx, $my',
-                style: Theme.of(context).textTheme.headline4,
-              ),
-            ),
-            Positioned(
-              left: screenSize.width / 2,
-              top: screenSize.height / 4,
-              child: SizedBox(
-                height: 20,
-                width: 20,
-                child: Container(
-                  color: Colors.red,
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    children: [
+                      Padding(
+                        padding: EdgeInsets.all(10),
+                        child: ElevatedButton(
+                          child: Text('Add boids'),
+                          onPressed: () => _addBoids(),
+                        ),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.all(10),
+                        child: ElevatedButton(
+                          child: Text('Remove boids'),
+                          onPressed: () => _removeBoids(),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
+  }
+}
+
+/// the boid
+/// position (x, y) will be 0 to 1, so will scale to viewport
+/// velocity will be in 0.01 units per second
+class Boid {
+  //posistion
+  double x;
+  double y;
+
+  // velocity
+  double vx;
+  double vy;
+
+  Boid(this.x, this.y, this.vx, this.vy);
+
+  /// create a boid with random velocity starting in the center
+  Boid.createRandom() {
+    x = 0.5;
+    y = 0.5;
+
+    vx = (Random().nextDouble() - 0.5) * 10;
+    vy = (Random().nextDouble() - 0.5) * 10;
+  }
+
+  void applyVelocity(int dt) {
+    final seconds = dt / 1000000;
+
+    x += vx * 0.01 * seconds;
+    if (x > 1) {
+      x = x - 1;
+    }
+    if (x < 0) {
+      x = x + 1;
+    }
+
+    y += vy * 0.01 * seconds;
+    if (y > 1) {
+      y = y - 1;
+    }
+    if (y < 0) {
+      y = y + 1;
+    }
+  }
+}
+
+class BoidPainter extends CustomPainter {
+  final List<Boid> boids;
+
+  BoidPainter(this.boids);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (var boid in boids) {
+      var boidPosition = Offset(boid.x * size.width, boid.y * size.height);
+      canvas.drawCircle(boidPosition, 3, Paint()..color = Colors.red);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) {
+    return true;
   }
 }
