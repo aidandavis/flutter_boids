@@ -29,51 +29,63 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage>
     with SingleTickerProviderStateMixin {
   static const boidsPerOperation = 15;
+  static const boidLimit = 300;
+
+  double agility = 0.2;
+  double speedLimit = 10;
+
+  double howCloseIsTooClose = 0.05;
+  double avoidanceFactor = 100;
 
   // list of boids
   final List<Boid> boids = [];
 
   /// time of last frame in microseconds
   int lastFrameTime = 0;
-  int fps;
+  int dt = 0;
 
   @override
   void initState() {
     createTicker(_tick)..start();
 
-    _addBoids();
+    _addBoids(50);
 
     super.initState();
   }
 
   _tick(Duration totalElapsedDuration) {
-    int dt = totalElapsedDuration.inMicroseconds - lastFrameTime;
+    // microseconds are smoother
+    dt = totalElapsedDuration.inMicroseconds - lastFrameTime;
     lastFrameTime = totalElapsedDuration.inMicroseconds;
 
-    if (dt == 0) {
-      dt = 1;
+    while (boids.length > boidLimit) {
+      _removeBoids();
     }
 
-    fps = 1000000 ~/ dt;
-
     for (var boid in boids) {
-      boid.applyVelocity(dt);
+      boid.avoidOthers(boids, howCloseIsTooClose, avoidanceFactor, dt);
+
+      boid.applyNextPosition(dt);
     }
 
     setState(() {});
   }
 
-  void _addBoids() {
+  void _addBoids([int numToAdd = boidsPerOperation]) {
     this.setState(() {
-      for (var i = 0; i < boidsPerOperation; i++) {
-        boids.add(Boid.createRandom());
+      for (var i = 0; i < numToAdd; i++) {
+        boids.add(Boid.createRandom(maxVelocity: speedLimit, agility: agility));
       }
     });
   }
 
-  void _removeBoids() {
+  void _removeBoids([int numToRemove = boidsPerOperation]) {
+    if (numToRemove > boids.length) {
+      numToRemove = boids.length;
+    }
+
     this.setState(() {
-      for (var i = 0; i < boidsPerOperation; i++) {
+      for (var i = 0; i < numToRemove; i++) {
         boids.removeAt(Random().nextInt(boids.length));
       }
     });
@@ -82,17 +94,18 @@ class _MyHomePageState extends State<MyHomePage>
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
+    final safeDt = dt == 0 ? 1 : dt;
 
     return Scaffold(
       body: CustomPaint(
-        painter: BoidPainter(boids),
+        painter: BoidPainter(boids, howCloseIsTooClose),
         child: Container(
           height: screenSize.height,
           width: screenSize.width,
           child: Stack(
             children: [
               Positioned(
-                child: Text('fps: ${fps ?? 0} (${boids.length})'),
+                child: Text('fps: ${1000000 ~/ safeDt} (${boids.length})'),
               ),
               Align(
                 alignment: Alignment.bottomCenter,
@@ -132,55 +145,172 @@ class _MyHomePageState extends State<MyHomePage>
 /// velocity will be in 0.01 units per second
 class Boid {
   //posistion
-  double x;
-  double y;
+  double _x;
+  double _y;
 
   // velocity
-  double vx;
-  double vy;
+  double _vx;
+  double _vy;
 
-  Boid(this.x, this.y, this.vx, this.vy);
+  // velocity changes to apply before next tick
+  double dvx = 0.0;
+  double dvy = 0.0;
+
+  /// limit of change to velocity per second
+  double agility;
+
+  /// maximum velocity
+  double maxVelocity;
+
+  Boid(
+    this._x,
+    this._y,
+    this._vx,
+    this._vy, {
+    this.maxVelocity = 10,
+    this.agility = 1,
+  });
 
   /// create a boid with random velocity starting in the center
-  Boid.createRandom() {
-    x = 0.5;
-    y = 0.5;
+  Boid.createRandom({this.maxVelocity = 10, this.agility: 1}) {
+    _x = 0.5;
+    _y = 0.5;
 
-    vx = (Random().nextDouble() - 0.5) * 10;
-    vy = (Random().nextDouble() - 0.5) * 10;
+    _vx = (Random().nextDouble() - 0.5) * 10;
+    _vy = (Random().nextDouble() - 0.5) * 10;
   }
 
-  void applyVelocity(int dt) {
+  get position => Point<double>(_x, _y);
+
+  /// dt is microseconds
+  Point<double> nextPostion(int dt) {
     final seconds = dt / 1000000;
 
-    x += vx * 0.01 * seconds;
-    if (x > 1) {
-      x = x - 1;
+    var nextX = _x + _vx * 0.01 * seconds;
+    if (nextX > 1) {
+      nextX -= 1;
     }
-    if (x < 0) {
-      x = x + 1;
+    if (nextX < 0) {
+      nextX += 1;
     }
 
-    y += vy * 0.01 * seconds;
-    if (y > 1) {
-      y = y - 1;
+    var nextY = _y + _vy * 0.01 * seconds;
+    if (nextY > 1) {
+      nextY -= 1;
     }
-    if (y < 0) {
-      y = y + 1;
+    if (nextY < 0) {
+      nextY += 1;
+    }
+
+    return Point(nextX, nextY);
+  }
+
+  void applyNextPosition(int dt) {
+    _applyVelocities();
+    _limitTotalVelocity();
+    final nextPosition = nextPostion(dt);
+
+    _x = nextPosition.x;
+    _y = nextPosition.y;
+  }
+
+  void _applyVelocities() {
+    if (dvx > agility) {
+      dvx = agility;
+    }
+    if (dvx < -agility) {
+      dvx = -agility;
+    }
+    _vx += dvx;
+
+    if (dvy > agility) {
+      dvy = agility;
+    }
+    if (dvy < -agility) {
+      dvy = -agility;
+    }
+    _vy += dvy;
+
+    dvx = 0.0;
+    dvy = 0.0;
+  }
+
+  void _limitTotalVelocity() {
+    final totalVelocity = sqrt(_vx * _vx + _vy * _vy);
+    if (totalVelocity > maxVelocity) {
+      _vx = (_vx / totalVelocity) * maxVelocity;
+      _vy = (_vy / totalVelocity) * maxVelocity;
     }
   }
+
+  void avoidOthers(
+    List<Boid> boids,
+    double howCloseIsTooClose,
+    double avoidanceFactor,
+    int dt, {
+    bool useNextPosition = true,
+  }) {
+    var dx = 0.0;
+    var dy = 0.0;
+
+    for (var boid in boids) {
+      // this boid would be in the list, so skip it
+      if (boid == this) {
+        continue;
+      }
+
+      final positionOfOther =
+          useNextPosition ? boid.nextPostion(dt) : boid.position;
+
+      final distanceToOther = distanceToPoint(positionOfOther);
+
+      if (distanceToOther < howCloseIsTooClose) {
+        dx += _x - positionOfOther.x;
+        dy += _y - positionOfOther.y;
+      }
+    }
+
+    dvx += dx * avoidanceFactor;
+    dvy += dy * avoidanceFactor;
+  }
+
+  double distanceToPoint(Point point) => position.distanceTo(point);
+
+  bool operator ==(dynamic other) {
+    if (other is Boid) {
+      return other.position == this.position &&
+          other._vx == this._vx &&
+          other._vy == this._vy;
+    } else
+      return false;
+  }
+
+  @override
+  int get hashCode => (_x * _y * _vx * _vy).toInt();
 }
 
 class BoidPainter extends CustomPainter {
   final List<Boid> boids;
+  final double howCloseIsTooClose;
 
-  BoidPainter(this.boids);
+  BoidPainter(this.boids, this.howCloseIsTooClose);
 
   @override
   void paint(Canvas canvas, Size size) {
     for (var boid in boids) {
-      var boidPosition = Offset(boid.x * size.width, boid.y * size.height);
-      canvas.drawCircle(boidPosition, 3, Paint()..color = Colors.red);
+      var boidOffset =
+          Offset(boid.position.x * size.width, boid.position.y * size.height);
+      canvas.drawCircle(boidOffset, 3, Paint()..color = Colors.red);
+
+      canvas.drawOval(
+          Rect.fromCenter(
+            center: boidOffset,
+            width: howCloseIsTooClose * size.width,
+            height: howCloseIsTooClose * size.height,
+          ),
+          Paint()
+            ..color = Colors.green
+            ..style = PaintingStyle.stroke);
     }
   }
 
