@@ -31,12 +31,6 @@ class _MyHomePageState extends State<MyHomePage>
   static const boidsPerOperation = 15;
   static const boidLimit = 200;
 
-  double agility = 0.25;
-  double speedLimit = 10;
-
-  double avoidanceDistance = 0.025;
-  double avoidanceFactor = 100;
-
   // list of boids
   final List<Boid> boids = [];
 
@@ -44,11 +38,16 @@ class _MyHomePageState extends State<MyHomePage>
   int lastFrameTime = 0;
   int dt = 0;
 
+  double speed = 0.1;
+
+  double avoidanceArc = 4 / 3 * pi;
+  double avoidanceDistance = 0.05;
+
   @override
   void initState() {
-    createTicker(_tick)..start();
+    _addBoids(20);
 
-    _addBoids(50);
+    createTicker(_tick)..start();
 
     super.initState();
   }
@@ -63,8 +62,6 @@ class _MyHomePageState extends State<MyHomePage>
     }
 
     for (var boid in boids) {
-      boid.avoidOthers(boids, dt);
-
       boid.applyNextPosition(dt);
     }
 
@@ -75,10 +72,9 @@ class _MyHomePageState extends State<MyHomePage>
     this.setState(() {
       for (var i = 0; i < numToAdd; i++) {
         boids.add(Boid.createRandom(
-          maxVelocity: speedLimit,
-          agility: agility,
+          speed: speed,
           avoidanceDistance: avoidanceDistance,
-          avoidanceFactor: avoidanceFactor,
+          avoidanceArc: avoidanceArc,
         ));
       }
     });
@@ -152,47 +148,33 @@ class Boid {
   //posistion
   double _x;
   double _y;
+  double _direction; // radians
 
-  // velocity
-  double _vx;
-  double _vy;
-
-  // velocity changes to apply before next tick
-  double dvx = 0.0;
-  double dvy = 0.0;
-
-  /// limit of change to velocity per second
-  double agility;
-
-  /// maximum velocity
-  double maxVelocity;
+  double speed;
 
   double avoidanceDistance;
-  double avoidanceFactor;
+
+  // in radians, centered on direction
+  double avoidanceArc;
 
   Boid(
     this._x,
     this._y,
-    this._vx,
-    this._vy, {
-    this.maxVelocity = 10,
-    this.agility = 1,
-    this.avoidanceDistance = 0.05,
-    this.avoidanceFactor = 10,
-  });
+    this._direction,
+    this.speed,
+    this.avoidanceArc,
+    this.avoidanceDistance,
+  );
 
   /// create a boid with random velocity starting in the center
-  Boid.createRandom({
-    this.maxVelocity = 10,
-    this.agility = 1,
-    this.avoidanceDistance = 0.05,
-    this.avoidanceFactor = 10,
-  }) {
+  Boid.createRandom(
+      {this.speed = 10,
+      this.avoidanceArc = pi,
+      this.avoidanceDistance = 0.05}) {
     _x = 0.5;
     _y = 0.5;
 
-    _vx = (Random().nextDouble() - 0.5) * 10;
-    _vy = (Random().nextDouble() - 0.5) * 10;
+    _direction = (Random().nextDouble() * 2 * pi);
   }
 
   get position => Point<double>(_x, _y);
@@ -201,108 +183,31 @@ class Boid {
   Point<double> nextPostion(int dt) {
     final seconds = dt / 1000000;
 
-    var nextX = _x + _vx * 0.01 * seconds;
-    var nextY = _y + _vy * 0.01 * seconds;
+    var nextX = _x + (cos(_direction) * speed * seconds);
+    var nextY = _y + (sin(_direction) * speed * seconds);
+
+    // wrapping
+    if (nextX > 1) {
+      nextX -= 1;
+    }
+    if (nextX < 0) {
+      nextX += 1;
+    }
+    if (nextY > 1) {
+      nextY -= 1;
+    }
+    if (nextY < 0) {
+      nextY += 1;
+    }
 
     return Point(nextX, nextY);
   }
 
-  /// avoid the edges
-  void _avoidWalls() {
-    var dx = 0.0;
-    var dy = 0.0;
-
-    // left edge
-    if (_x < avoidanceDistance) {
-      dx += _x.abs();
-    }
-
-    // right edge
-    if (1 - _x < avoidanceDistance) {
-      dx -= (1 - _x).abs();
-    }
-
-    // top edge
-    if (_y < avoidanceDistance) {
-      dy += _y.abs();
-    }
-
-    // bottom edge
-    if (1 - _y < avoidanceDistance) {
-      dy -= (1 - _y).abs();
-    }
-
-    dvx += dx * avoidanceFactor;
-    dvy += dy * avoidanceFactor;
-  }
-
   void applyNextPosition(int dt) {
-    _avoidWalls();
-    _applyVelocities();
-    _limitTotalVelocity();
-
     final nextPosition = nextPostion(dt);
 
     _x = nextPosition.x;
     _y = nextPosition.y;
-  }
-
-  void _applyVelocities() {
-    if (dvx > agility) {
-      dvx = agility;
-    }
-    if (dvx < -agility) {
-      dvx = -agility;
-    }
-    _vx += dvx;
-
-    if (dvy > agility) {
-      dvy = agility;
-    }
-    if (dvy < -agility) {
-      dvy = -agility;
-    }
-    _vy += dvy;
-
-    dvx = 0.0;
-    dvy = 0.0;
-  }
-
-  void _limitTotalVelocity() {
-    final totalVelocity = sqrt(_vx * _vx + _vy * _vy);
-    if (totalVelocity > maxVelocity) {
-      _vx = (_vx / totalVelocity) * maxVelocity;
-      _vy = (_vy / totalVelocity) * maxVelocity;
-    }
-  }
-
-  void avoidOthers(
-    List<Boid> boids,
-    int dt, {
-    bool useNextPosition = true,
-  }) {
-    var dx = 0.0;
-    var dy = 0.0;
-
-    for (var boid in boids) {
-      // this boid would be in the list, so skip it
-      if (boid == this) {
-        continue;
-      }
-
-      final positionOfOther =
-          useNextPosition ? boid.nextPostion(dt) : boid.position;
-
-      final distanceToOther = distanceToPoint(positionOfOther);
-
-      if (distanceToOther < avoidanceDistance) {
-        dx += _x - positionOfOther.x;
-        dy += _y - positionOfOther.y;
-      }
-    }
-
-    dvx += dx * avoidanceFactor;
-    dvy += dy * avoidanceFactor;
   }
 
   double distanceToPoint(Point point) => position.distanceTo(point);
@@ -310,14 +215,14 @@ class Boid {
   bool operator ==(dynamic other) {
     if (other is Boid) {
       return other.position == this.position &&
-          other._vx == this._vx &&
-          other._vy == this._vy;
+          other._direction == this._direction &&
+          other.speed == this.speed;
     } else
       return false;
   }
 
   @override
-  int get hashCode => (_x * _y * _vx * _vy).toInt();
+  int get hashCode => (_x * _y * _direction * speed).toInt();
 }
 
 class BoidPainter extends CustomPainter {
@@ -329,19 +234,42 @@ class BoidPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     for (var boid in boids) {
-      var boidOffset =
+      final boidOffset =
           Offset(boid.position.x * size.width, boid.position.y * size.height);
+
       canvas.drawCircle(boidOffset, 3, Paint()..color = Colors.red);
 
-      canvas.drawOval(
-          Rect.fromCenter(
-            center: boidOffset,
-            width: avoidanceDistance * size.width,
-            height: avoidanceDistance * size.height,
-          ),
-          Paint()
-            ..color = Colors.green
-            ..style = PaintingStyle.stroke);
+      final avoidanceRect = Rect.fromCenter(
+        center: boidOffset,
+        width: avoidanceDistance * size.width,
+        height: avoidanceDistance * size.height,
+      );
+
+      // left
+      canvas.drawArc(
+        avoidanceRect,
+        boid._direction - boid.avoidanceArc / 2,
+        boid.avoidanceArc / 2,
+        true,
+        Paint()
+          ..color = Colors.blue
+          ..style = PaintingStyle.stroke,
+      );
+
+      // right
+      canvas.drawArc(
+        avoidanceRect,
+        boid._direction,
+        boid.avoidanceArc / 2,
+        true,
+        Paint()
+          ..color = Colors.red
+          ..style = PaintingStyle.stroke,
+      );
+
+      // canvas.drawOval(Paint()
+      //   ..color = Colors.green
+      //   ..style = PaintingStyle.stroke);
     }
   }
 
