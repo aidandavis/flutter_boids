@@ -10,7 +10,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'Boids',
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
@@ -42,14 +42,14 @@ class _MyHomePageState extends State<MyHomePage>
   double maxTurnSpeed = 0.05;
 
   double avoidanceArc = 4 / 3 * pi;
-  double avoidanceDistance = 0.05;
-  double avoidanceWeight = 1;
+  double avoidanceDistance = 0.075;
+  double avoidanceWeight = 0.01;
 
   @override
   void initState() {
     super.initState();
 
-    _addBoids(20);
+    _addBoids(10);
 
     createTicker(_tick)..start();
   }
@@ -118,7 +118,7 @@ class _MyHomePageState extends State<MyHomePage>
 
     return Scaffold(
       body: CustomPaint(
-        painter: BoidPainter(boids, avoidanceDistance),
+        painter: BoidPainter(boids),
         child: Container(
           height: screenSize.height,
           width: screenSize.width,
@@ -190,7 +190,8 @@ class Boid {
     _x = 0.5;
     _y = 0.5;
 
-    _direction = (Random().nextDouble() * 2 * pi);
+    _direction = -2 * pi * (Random().nextDouble() * 2 * pi);
+    // _direction = pi / 2;
   }
 
   get position => Point<double>(_x, _y);
@@ -228,11 +229,19 @@ class Boid {
     }
 
     _direction += newDirection;
+    _normaliseDirection();
 
     final nextPosition = nextPostion(ds);
 
     _x = nextPosition.x;
     _y = nextPosition.y;
+  }
+
+  /// keep direction between pi and -pi
+  void _normaliseDirection() {
+    if (_direction.abs() > pi) {
+      _direction = _direction - 2 * pi * ((_direction + pi) / (2 * pi)).floor();
+    }
   }
 
   void avoidOtherBoids(List<Boid> boids, double ds) {
@@ -244,32 +253,43 @@ class Boid {
         continue;
       }
 
-      final otherBoidNextPosition = boid.nextPostion(ds);
-
-      // print(distanceToPoint(otherBoidNextPosition));
-
-      if (distanceToPoint(otherBoidNextPosition) < avoidanceDistance) {
+      if (distanceToPoint(boid.position) <= avoidanceDistance) {
+        // scaled to 0 +- pi
         final angleToOtherBoid =
-            atan2(otherBoidNextPosition.y - _y, otherBoidNextPosition.x - _x);
+            atan2(boid.position.y - _y, boid.position.x - _x);
 
-        // print(
-        //     '$angleToOtherBoid. ${_direction - avoidanceArc / 2}, ${_direction + avoidanceArc / 2}');
+        final scaledDirection = _direction + pi;
+        final scaledAngleToOtherBoid = angleToOtherBoid + pi;
 
-        if (angleToOtherBoid >= _direction - avoidanceArc / 2 &&
-            angleToOtherBoid <= _direction + avoidanceArc / 2) {
-          boidsToAvoid.add(otherBoidNextPosition);
+        final minAvoidanceBound = scaledDirection - (avoidanceArc / 2);
+        final maxAvoidanceBound = scaledDirection + (avoidanceArc / 2);
+
+        if (scaledAngleToOtherBoid >= minAvoidanceBound &&
+            scaledAngleToOtherBoid <= maxAvoidanceBound) {
+          boidsToAvoid.add(boid.position);
+
+          newDirection += avoidanceWeight *
+              (pi - (_direction - angleToOtherBoid)) *
+              (_direction - angleToOtherBoid).sign;
         }
       }
     }
 
-    newDirection += turnAmount * avoidanceWeight;
+    newDirection += turnAmount;
+  }
+
+  void avoidWalls(double ds) {
+    final nextPosition = nextPostion(ds);
+
+    if (nextPosition.x < avoidanceDistance) {}
   }
 
   double distanceToPoint(Point point) => position.distanceTo(point);
 
   bool operator ==(dynamic other) {
     if (other is Boid) {
-      return other.position == this.position &&
+      return other._x == this._x &&
+          other._y == this._y &&
           other._direction == this._direction &&
           other.speed == this.speed;
     } else
@@ -282,9 +302,8 @@ class Boid {
 
 class BoidPainter extends CustomPainter {
   final List<Boid> boids;
-  final double avoidanceDistance;
 
-  BoidPainter(this.boids, this.avoidanceDistance);
+  BoidPainter(this.boids);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -294,19 +313,19 @@ class BoidPainter extends CustomPainter {
 
       canvas.drawCircle(boidOffset, 4, Paint()..color = Colors.red);
 
-      _drawAvoidance(canvas, size, boid);
+      // _drawAvoidance(canvas, size, boid);
 
-      for (final otherBoid in boid.boidsToAvoid) {
-        final otherBoidOffset =
-            Offset(otherBoid.x * size.width, otherBoid.y * size.height);
-        canvas.drawLine(
-          boidOffset,
-          otherBoidOffset,
-          Paint()
-            ..color = Colors.black
-            ..strokeWidth = 2,
-        );
-      }
+      // for (final otherBoid in boid.boidsToAvoid) {
+      //   final otherBoidOffset =
+      //       Offset(otherBoid.x * size.width, otherBoid.y * size.height);
+      //   canvas.drawLine(
+      //     boidOffset,
+      //     otherBoidOffset,
+      //     Paint()
+      //       ..color = Colors.black
+      //       ..strokeWidth = 2,
+      //   );
+      // }
     }
   }
 
@@ -317,8 +336,8 @@ class BoidPainter extends CustomPainter {
     // avoidance
     final avoidanceRect = Rect.fromCenter(
       center: boidOffset,
-      width: avoidanceDistance * size.width,
-      height: avoidanceDistance * size.height,
+      width: boid.avoidanceDistance * size.width * 2,
+      height: boid.avoidanceDistance * size.height * 2,
     );
 
     // left
@@ -340,7 +359,7 @@ class BoidPainter extends CustomPainter {
         true,
         Paint()
           ..color = Colors.blue
-              .withOpacity(boid.newDirection.abs() / boid.maxTurnSpeed)
+              .withOpacity(0.5 * boid.newDirection.abs() / boid.maxTurnSpeed)
           ..style = PaintingStyle.fill
           ..strokeWidth = 2,
       );
@@ -365,7 +384,7 @@ class BoidPainter extends CustomPainter {
         true,
         Paint()
           ..color = Colors.red
-              .withOpacity(boid.newDirection.abs() / boid.maxTurnSpeed)
+              .withOpacity(0.5 * boid.newDirection.abs() / boid.maxTurnSpeed)
           ..style = PaintingStyle.fill
           ..strokeWidth = 2,
       );
