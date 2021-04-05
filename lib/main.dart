@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'dart:math';
 
@@ -39,11 +41,10 @@ class _MyHomePageState extends State<MyHomePage>
   int dt = 0;
 
   double speed = 0.05;
-  double maxTurnSpeed = 0.05;
+  double maxTurnSpeed = 0.2;
 
-  double avoidanceArc = 4 / 3 * pi;
-  double avoidanceDistance = 0.075;
-  double avoidanceWeight = 0.01;
+  double avoidanceDistance = 0.01;
+  double avoidanceWeight = 0.5;
 
   @override
   void initState() {
@@ -92,7 +93,6 @@ class _MyHomePageState extends State<MyHomePage>
           speed: speed,
           maxTurnSpeed: maxTurnSpeed,
           avoidanceDistance: avoidanceDistance,
-          avoidanceArc: avoidanceArc,
           avoidanceWeight: avoidanceWeight,
         ));
       }
@@ -174,7 +174,6 @@ class Boid {
   double maxTurnSpeed; // how many radians per second this boid can turn
 
   double avoidanceDistance;
-  double avoidanceArc; // in radians, centered on direction
   double avoidanceWeight;
 
   List<Point> boidsToAvoid = [];
@@ -184,7 +183,6 @@ class Boid {
     @required this.speed,
     @required this.maxTurnSpeed,
     @required this.avoidanceDistance,
-    @required this.avoidanceArc,
     @required this.avoidanceWeight,
   }) {
     _x = 0.5;
@@ -229,7 +227,7 @@ class Boid {
     }
 
     _direction += newDirection;
-    _normaliseDirection();
+    _direction = _normaliseDirection(_direction);
 
     final nextPosition = nextPostion(ds);
 
@@ -238,9 +236,11 @@ class Boid {
   }
 
   /// keep direction between pi and -pi
-  void _normaliseDirection() {
-    if (_direction.abs() > pi) {
-      _direction = _direction - 2 * pi * ((_direction + pi) / (2 * pi)).floor();
+  double _normaliseDirection(double direction) {
+    if (direction.abs() > pi) {
+      return direction - 2 * pi * ((direction + pi) / (2 * pi)).floor();
+    } else {
+      return direction;
     }
   }
 
@@ -253,30 +253,25 @@ class Boid {
         continue;
       }
 
-      if (distanceToPoint(boid.position) <= avoidanceDistance) {
-        // scaled to 0 +- pi
-        final angleToOtherBoid =
-            atan2(boid.position.y - _y, boid.position.x - _x);
+      if (_distanceToOtherPoint(boid.position) <= avoidanceDistance) {
+        boidsToAvoid.add(boid.position);
 
-        final scaledDirection = _direction + pi;
-        final scaledAngleToOtherBoid = angleToOtherBoid + pi;
+        // we want to turn in opposite direction of other boid
+        var turn = _relativeDirectionToOtherPoint(boid.position);
 
-        final minAvoidanceBound = scaledDirection - (avoidanceArc / 2);
-        final maxAvoidanceBound = scaledDirection + (avoidanceArc / 2);
+        // we want maximum turning if other boid is straight ahead
+        turn = (2 * pi - (turn + pi)) - pi;
 
-        if (scaledAngleToOtherBoid >= minAvoidanceBound &&
-            scaledAngleToOtherBoid <= maxAvoidanceBound) {
-          boidsToAvoid.add(boid.position);
-
-          newDirection += avoidanceWeight *
-              (pi - (_direction - angleToOtherBoid)) *
-              (_direction - angleToOtherBoid).sign;
-        }
+        turnAmount += avoidanceWeight * turn;
       }
     }
 
-    newDirection += turnAmount;
+    newDirection += _normaliseDirection(turnAmount);
   }
+
+  void turnTowardCentreOfMass(List<Boid> boids, double ds) {}
+
+  void turnTowardDirectionOfOtherBoids(List<Boid> boids, double ds) {}
 
   void avoidWalls(double ds) {
     final nextPosition = nextPostion(ds);
@@ -284,7 +279,16 @@ class Boid {
     if (nextPosition.x < avoidanceDistance) {}
   }
 
-  double distanceToPoint(Point point) => position.distanceTo(point);
+  double _distanceToOtherPoint(Point point) => position.distanceTo(point);
+
+  /// not relative to current direction
+  double _directionToOtherPoint(Point point) =>
+      atan2(point.y - _y, point.x - _x);
+
+  /// -pi to pi
+  double _relativeDirectionToOtherPoint(Point point) {
+    return _normaliseDirection(_directionToOtherPoint(point) - _direction);
+  }
 
   bool operator ==(dynamic other) {
     if (other is Boid) {
@@ -311,28 +315,53 @@ class BoidPainter extends CustomPainter {
       final boidOffset =
           Offset(boid.position.x * size.width, boid.position.y * size.height);
 
-      canvas.drawCircle(boidOffset, 4, Paint()..color = Colors.red);
+      _drawBoid(canvas, size, boid, boidOffset);
 
-      // _drawAvoidance(canvas, size, boid);
+      _drawAvoidance(canvas, size, boid, boidOffset);
 
-      // for (final otherBoid in boid.boidsToAvoid) {
-      //   final otherBoidOffset =
-      //       Offset(otherBoid.x * size.width, otherBoid.y * size.height);
-      //   canvas.drawLine(
-      //     boidOffset,
-      //     otherBoidOffset,
-      //     Paint()
-      //       ..color = Colors.black
-      //       ..strokeWidth = 2,
-      //   );
-      // }
+      for (final otherBoid in boid.boidsToAvoid) {
+        final otherBoidOffset =
+            Offset(otherBoid.x * size.width, otherBoid.y * size.height);
+        canvas.drawLine(
+          boidOffset,
+          otherBoidOffset,
+          Paint()
+            ..color = Colors.black
+            ..strokeWidth = 2,
+        );
+      }
     }
   }
 
-  void _drawAvoidance(Canvas canvas, Size size, Boid boid) {
-    final boidOffset =
-        Offset(boid.position.x * size.width, boid.position.y * size.height);
+  void _drawBoid(Canvas canvas, Size size, Boid boid, Offset boidOffset) {
+    // canvas.drawCircle(boidOffset, 4, Paint()..color = Colors.red);
 
+    // draw a little triangle
+    final boidPath = Path()
+      ..addPolygon(
+        [
+          Offset(-4, 4),
+          Offset(8, 0),
+          Offset(-4, -4),
+        ],
+        true,
+      );
+
+    // rotate to face direction and translate to match offset
+    final transformationMatrix = Matrix4.identity()
+      ..rotateZ(boid._direction)
+      ..setTranslationRaw(boidOffset.dx, boidOffset.dy, 0);
+
+    canvas.drawPath(
+      boidPath.transform(transformationMatrix.storage),
+      Paint()
+        ..color = Colors.red
+        ..strokeWidth = 2
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  void _drawAvoidance(Canvas canvas, Size size, Boid boid, Offset boidOffset) {
     // avoidance
     final avoidanceRect = Rect.fromCenter(
       center: boidOffset,
@@ -340,55 +369,62 @@ class BoidPainter extends CustomPainter {
       height: boid.avoidanceDistance * size.height * 2,
     );
 
-    // left
-    canvas.drawArc(
+    canvas.drawOval(
       avoidanceRect,
-      boid._direction - boid.avoidanceArc / 2,
-      boid.avoidanceArc / 2,
-      true,
       Paint()
-        ..color = Colors.blue
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..color = Colors.black
+        ..style = PaintingStyle.stroke,
     );
-    if (boid.newDirection.sign < 0) {
-      canvas.drawArc(
-        avoidanceRect,
-        boid._direction - boid.avoidanceArc / 2,
-        boid.avoidanceArc / 2,
-        true,
-        Paint()
-          ..color = Colors.blue
-              .withOpacity(0.5 * boid.newDirection.abs() / boid.maxTurnSpeed)
-          ..style = PaintingStyle.fill
-          ..strokeWidth = 2,
-      );
-    }
 
-    // right
-    canvas.drawArc(
-      avoidanceRect,
-      boid._direction,
-      boid.avoidanceArc / 2,
-      true,
-      Paint()
-        ..color = Colors.red
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-    if (boid.newDirection.sign > 0) {
-      canvas.drawArc(
-        avoidanceRect,
-        boid._direction,
-        boid.avoidanceArc / 2,
-        true,
-        Paint()
-          ..color = Colors.red
-              .withOpacity(0.5 * boid.newDirection.abs() / boid.maxTurnSpeed)
-          ..style = PaintingStyle.fill
-          ..strokeWidth = 2,
-      );
-    }
+    // // left
+    // canvas.drawArc(
+    //   avoidanceRect,
+    //   boid._direction - boid.avoidanceArc / 2,
+    //   boid.avoidanceArc / 2,
+    //   true,
+    //   Paint()
+    //     ..color = Colors.blue
+    //     ..style = PaintingStyle.stroke
+    //     ..strokeWidth = 2,
+    // );
+    // if (boid.newDirection.sign < 0) {
+    //   canvas.drawArc(
+    //     avoidanceRect,
+    //     boid._direction - boid.avoidanceArc / 2,
+    //     boid.avoidanceArc / 2,
+    //     true,
+    //     Paint()
+    //       ..color = Colors.blue
+    //           .withOpacity(0.5 * boid.newDirection.abs() / boid.maxTurnSpeed)
+    //       ..style = PaintingStyle.fill
+    //       ..strokeWidth = 2,
+    //   );
+    // }
+
+    // // right
+    // canvas.drawArc(
+    //   avoidanceRect,
+    //   boid._direction,
+    //   boid.avoidanceArc / 2,
+    //   true,
+    //   Paint()
+    //     ..color = Colors.red
+    //     ..style = PaintingStyle.stroke
+    //     ..strokeWidth = 2,
+    // );
+    // if (boid.newDirection.sign > 0) {
+    //   canvas.drawArc(
+    //     avoidanceRect,
+    //     boid._direction,
+    //     boid.avoidanceArc / 2,
+    //     true,
+    //     Paint()
+    //       ..color = Colors.red
+    //           .withOpacity(0.5 * boid.newDirection.abs() / boid.maxTurnSpeed)
+    //       ..style = PaintingStyle.fill
+    //       ..strokeWidth = 2,
+    //   );
+    // }
   }
 
   @override
