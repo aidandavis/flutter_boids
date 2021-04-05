@@ -31,7 +31,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage>
     with SingleTickerProviderStateMixin {
   static const boidsPerOperation = 15;
-  static const boidLimit = 150;
+  static const boidLimit = 120;
 
   // list of boids
   final List<Boid> boids = [];
@@ -40,8 +40,8 @@ class _MyHomePageState extends State<MyHomePage>
   int lastFrameTime = 0;
   int dt = 0;
 
-  double speed = 0.1;
-  double maxTurnSpeed = 0.1;
+  double speed = 0.2;
+  double maxTurnSpeed = 0.05;
 
   double avoidanceDistance = 0.02;
   double avoidanceWeight = 0.5;
@@ -49,14 +49,16 @@ class _MyHomePageState extends State<MyHomePage>
   double awarenessArc = (5 / 4) * pi;
   double awarenessDistance = 0.1;
 
-  double coherenceWeight = 0.1;
+  double coherenceWeight = 0.2;
   double alignmentWeight = 0.1;
+
+  Offset coherencePosition = Offset(0.5, 0.5);
 
   @override
   void initState() {
     super.initState();
 
-    _addBoids(15);
+    _addBoids(50);
 
     createTicker(_tick)..start();
   }
@@ -88,7 +90,9 @@ class _MyHomePageState extends State<MyHomePage>
 
       boid.avoidOtherBoids(boids, ds);
 
-      boid.coherence(boids, ds);
+      // boid.coherence(boids, ds);
+
+      boid.cohereTowardPoint(coherencePosition);
 
       boid.alignment(boids, ds);
 
@@ -133,42 +137,68 @@ class _MyHomePageState extends State<MyHomePage>
     final safeDt = dt == 0 ? 1 : dt;
 
     return Scaffold(
-      body: CustomPaint(
-        painter: BoidPainter(boids),
-        child: Container(
-          height: screenSize.height,
-          width: screenSize.width,
-          child: Stack(
-            children: [
-              Positioned(
-                child: Text('fps: ${1000000 ~/ safeDt} (${boids.length})'),
-              ),
-              Align(
-                alignment: Alignment.bottomCenter,
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
+      body: Container(
+        color: Colors.grey[900],
+        child: Center(
+          child: SizedBox(
+            height: screenSize.shortestSide,
+            width: screenSize.shortestSide,
+            child: GestureDetector(
+              onPanUpdate: (details) {
+                setState(() {
+                  coherencePosition = Offset(
+                    details.localPosition.dx / screenSize.shortestSide,
+                    details.localPosition.dy / screenSize.shortestSide,
+                  );
+                });
+              },
+              child: CustomPaint(
+                foregroundPainter: BoidPainter(
+                  boids,
+                  coherencePosition,
+                  drawAvoidance: false,
+                  drawAwareness: false,
+                ),
+                child: Container(
+                  color: Colors.grey[200],
+                  height: screenSize.height,
+                  width: screenSize.width,
+                  child: Stack(
                     children: [
-                      Padding(
-                        padding: EdgeInsets.all(10),
-                        child: ElevatedButton(
-                          child: Text('Add boids'),
-                          onPressed: () => _addBoids(),
-                        ),
+                      Positioned(
+                        child:
+                            Text('fps: ${1000000 ~/ safeDt} (${boids.length})'),
                       ),
-                      Padding(
-                        padding: EdgeInsets.all(10),
-                        child: ElevatedButton(
-                          child: Text('Remove boids'),
-                          onPressed: () => _removeBoids(),
+                      Align(
+                        alignment: Alignment.bottomCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Wrap(
+                            alignment: WrapAlignment.center,
+                            children: [
+                              Padding(
+                                padding: EdgeInsets.all(10),
+                                child: ElevatedButton(
+                                  child: Text('Add boids'),
+                                  onPressed: () => _addBoids(),
+                                ),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(10),
+                                child: ElevatedButton(
+                                  child: Text('Remove boids'),
+                                  onPressed: () => _removeBoids(),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-            ],
+            ),
           ),
         ),
       ),
@@ -325,17 +355,22 @@ class Boid {
         continue;
       }
 
-      if (_isAwareOfThisBoid(boid, ds)) {
-        sumX += boid.position.x;
-        sumY += boid.position.y;
-        sumBoids++;
-      }
+      // if (_isAwareOfThisBoid(boid, ds)) {
+      sumX += boid.position.x;
+      sumY += boid.position.y;
+      sumBoids++;
+      // }
     }
 
     if (sumBoids > 0) {
       final com = Point(sumX / sumBoids, sumY / sumBoids);
       newDirection += _relativeDirectionToOtherPoint(com) * coherenceWeight;
     }
+  }
+
+  void cohereTowardPoint(Offset point) {
+    newDirection += _relativeDirectionToOtherPoint(Point(point.dx, point.dy)) *
+        coherenceWeight;
   }
 
   /// turn to match average direction of other boids
@@ -420,8 +455,12 @@ class Boid {
 
 class BoidPainter extends CustomPainter {
   final List<Boid> boids;
+  final Offset coherencePosition;
+  final bool drawAvoidance;
+  final bool drawAwareness;
 
-  BoidPainter(this.boids);
+  BoidPainter(this.boids, this.coherencePosition,
+      {this.drawAvoidance = true, this.drawAwareness = true});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -429,19 +468,20 @@ class BoidPainter extends CustomPainter {
       final boidOffset =
           Offset(boid.position.x * size.width, boid.position.y * size.height);
 
+      canvas.drawCircle(
+        coherencePosition.scale(size.width, size.height),
+        8,
+        Paint()..color = Colors.orange,
+      );
+
       _drawBoid(canvas, size, boid, boidOffset);
 
-      try {
+      if (drawAvoidance) {
         _drawAvoidance(canvas, size, boid, boidOffset);
-      } catch (e) {
-        print(e);
-        print('avoidance');
       }
-      try {
+
+      if (drawAwareness) {
         _drawAwareness(canvas, size, boid, boidOffset);
-      } catch (e) {
-        print(e);
-        print('awareness');
       }
     }
   }
