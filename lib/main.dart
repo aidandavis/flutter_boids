@@ -30,7 +30,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage>
     with SingleTickerProviderStateMixin {
   static const boidsPerOperation = 15;
-  static const boidLimit = 200;
+  static const boidLimit = 500;
   static const fpsAverageCount = 20;
 
   // list of boids
@@ -65,7 +65,7 @@ class _MyHomePageState extends State<MyHomePage>
   void initState() {
     super.initState();
 
-    _addBoids(50);
+    _addBoids(75);
 
     createTicker(_tick)..start();
   }
@@ -209,12 +209,6 @@ class _MyHomePageState extends State<MyHomePage>
                   children: [
                     Text(
                       'fps: $fps (${boids.length}) boids',
-                      style: TextStyle(
-                        color: Colors.white70,
-                      ),
-                    ),
-                    Text(
-                      ': $fps (${boids.length}) boids',
                       style: TextStyle(
                         color: Colors.white70,
                       ),
