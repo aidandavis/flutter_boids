@@ -31,7 +31,7 @@ class _MyHomePageState extends State<MyHomePage>
     with SingleTickerProviderStateMixin {
   static const boidsPerOperation = 15;
   static const boidLimit = 200;
-  static const fpsAverageCount = 10;
+  static const fpsAverageCount = 20;
 
   // list of boids
   final List<Boid> boids = [];
@@ -45,14 +45,14 @@ class _MyHomePageState extends State<MyHomePage>
   double speed = 0.15;
   double maxTurnSpeed = 0.05;
 
-  double avoidanceDistance = 0.02;
-  double avoidanceWeight = 0.375;
+  double separationDistance = 0.02;
+  double separationWeight = 0.375;
 
   double awarenessArc = pi;
   double awarenessDistance = 0.1;
 
   double coherenceWeight = 0.05;
-  double alignmentWeight = 0.125;
+  double alignmentWeight = 0.05;
 
   Offset coherencePosition = Offset(0.5, 0.5);
 
@@ -92,8 +92,16 @@ class _MyHomePageState extends State<MyHomePage>
       boid.iterate(
         boids,
         ds,
-        cohereToPoint,
-        Point(coherencePosition.dx, coherencePosition.dy),
+        speed: speed,
+        maxTurnSpeed: maxTurnSpeed,
+        separationDistance: separationDistance,
+        separationWeight: separationWeight,
+        awarenessDistance: awarenessDistance,
+        awarenessArc: awarenessArc,
+        coherenceWeight: coherenceWeight,
+        alignmentWeight: alignmentWeight,
+        cohereToPoint: cohereToPoint,
+        coherencePoint: Point(coherencePosition.dx, coherencePosition.dy),
       );
     }
 
@@ -113,16 +121,7 @@ class _MyHomePageState extends State<MyHomePage>
   void _addBoids([int numToAdd = boidsPerOperation]) {
     this.setState(() {
       for (var i = 0; i < numToAdd; i++) {
-        boids.add(Boid.createRandom(
-          speed: speed,
-          maxTurnSpeed: maxTurnSpeed,
-          separationDistance: avoidanceDistance,
-          separationWeight: avoidanceWeight,
-          awarenessDistance: awarenessDistance,
-          awarenessArc: awarenessArc,
-          coherenceWeight: coherenceWeight,
-          alignmentWeight: alignmentWeight,
-        ));
+        boids.add(Boid.createRandom());
       }
     });
   }
@@ -139,12 +138,25 @@ class _MyHomePageState extends State<MyHomePage>
     });
   }
 
+  void _resetSettings() {
+    setState(() {
+      separationDistance = 0.02;
+      separationWeight = 0.375;
+
+      awarenessArc = pi;
+      awarenessDistance = 0.1;
+
+      coherenceWeight = 0.05;
+      alignmentWeight = 0.05;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
 
     final fps = fpsList.isNotEmpty
-        ? fpsList.reduce((value, element) => value + element) / fpsList.length
+        ? fpsList.reduce((value, element) => value + element) ~/ fpsList.length
         : 60;
 
     return Scaffold(
@@ -178,78 +190,223 @@ class _MyHomePageState extends State<MyHomePage>
                     boids,
                     cohereToPoint,
                     coherencePosition,
+                    separationDistance,
+                    awarenessDistance,
+                    awarenessArc,
                     drawAvoidance: drawAvoidance,
                     drawAwareness: drawAwareness,
                   ),
                 ),
               ),
             ),
-            Positioned(
-              top: 10,
-              left: 10,
-              child: Text(
-                'fps: $fps (${boids.length})',
-                style: TextStyle(
-                  color: Colors.white70,
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  children: [
+                    Text(
+                      'fps: $fps (${boids.length}) boids',
+                      style: TextStyle(
+                        color: Colors.white70,
+                      ),
+                    ),
+                    Text(
+                      ': $fps (${boids.length}) boids',
+                      style: TextStyle(
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
             Align(
               alignment: Alignment.bottomCenter,
               child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
                 alignment: WrapAlignment.center,
+                spacing: 10,
                 children: [
-                  Padding(
-                    padding: EdgeInsets.all(10),
-                    child: ElevatedButton(
-                      child: Text('Add boids'),
-                      onPressed: () => _addBoids(),
-                    ),
+                  ElevatedButton(
+                    child: Text('Add boids'),
+                    onPressed: () => _addBoids(),
                   ),
-                  Padding(
-                    padding: EdgeInsets.all(10),
-                    child: ElevatedButton(
-                      child: Text('Remove boids'),
-                      onPressed: () => _removeBoids(),
-                    ),
+                  ElevatedButton(
+                    child: Text('Remove boids'),
+                    onPressed: () => _removeBoids(),
                   ),
-                  Padding(
-                    padding: EdgeInsets.all(10),
-                    child: ElevatedButton(
-                      child:
-                          Text('${drawAvoidance ? 'Hide' : 'Show'} Avoidance'),
-                      onPressed: () {
-                        setState(() {
-                          drawAvoidance = !drawAvoidance;
-                        });
-                      },
-                    ),
+                  ElevatedButton(
+                    child:
+                        Text('${drawAvoidance ? 'Hide' : 'Show'} Separation'),
+                    onPressed: () {
+                      setState(() {
+                        drawAvoidance = !drawAvoidance;
+                      });
+                    },
                   ),
-                  Padding(
-                    padding: EdgeInsets.all(10),
-                    child: ElevatedButton(
-                      child:
-                          Text('${drawAwareness ? 'Hide' : 'Show'} Awareness'),
-                      onPressed: () {
-                        setState(() {
-                          drawAwareness = !drawAwareness;
-                        });
-                      },
-                    ),
+                  ElevatedButton(
+                    child: Text('${drawAwareness ? 'Hide' : 'Show'} Awareness'),
+                    onPressed: () {
+                      setState(() {
+                        drawAwareness = !drawAwareness;
+                      });
+                    },
                   ),
-                  Padding(
-                    padding: EdgeInsets.all(10),
-                    child: ElevatedButton(
-                      child: Text(
-                          '${cohereToPoint ? 'Stop' : 'Start'} Cohherence to Point'),
-                      onPressed: () {
-                        setState(() {
-                          cohereToPoint = !cohereToPoint;
-                        });
-                      },
-                    ),
+                  ElevatedButton(
+                    child: Text(
+                        '${cohereToPoint ? 'Stop' : 'Start'} Cohherence to Point'),
+                    onPressed: () {
+                      setState(() {
+                        cohereToPoint = !cohereToPoint;
+                      });
+                    },
                   ),
-                ],
+                  // ElevatedButton(
+                  //   child: Text('Reset Settings'),
+                  //   onPressed: () => _resetSettings(),
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Awareness Arc',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: awarenessArc,
+                  //       min: pi / 2,
+                  //       max: 2 * pi,
+                  //       onChanged: (value) {
+                  //         setState(() {
+                  //           awarenessArc = value;
+                  //         });
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Awareness Distance',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: awarenessDistance,
+                  //       label: 'hello',
+                  //       min: 0.01,
+                  //       max: 1 / 3,
+                  //       onChanged: (value) {
+                  //         setState(() {
+                  //           awarenessDistance = value;
+                  //         });
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Cohesion Weight',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: coherenceWeight,
+                  //       min: 0,
+                  //       max: 0.2,
+                  //       onChanged: (value) {
+                  //         setState(() {
+                  //           coherenceWeight = value;
+                  //         });
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Alignment Weight',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: alignmentWeight,
+                  //       min: 0,
+                  //       max: 0.2,
+                  //       onChanged: (value) {
+                  //         setState(() {
+                  //           alignmentWeight = value;
+                  //         });
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Separation Distance',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: separationDistance,
+                  //       min: 0,
+                  //       max: 0.05,
+                  //       onChanged: (value) {
+                  //         setState(() {
+                  //           separationDistance = value;
+                  //         });
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Separation Weight',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: separationWeight,
+                  //       min: 0,
+                  //       max: 0.5,
+                  //       onChanged: (value) {
+                  //         setState(() {
+                  //           separationWeight = value;
+                  //         });
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                ]
+                    .map((Widget widget) => Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: widget,
+                        ))
+                    .toList(),
               ),
             ),
           ],
@@ -269,37 +426,16 @@ class Boid {
 
   double newDirection = 0.0; // for the next tick
 
-  double speed;
-  double maxTurnSpeed; // how many radians per second this boid can turn
-
-  double separationDistance;
-  double separationWeight;
-
   List<Point> boidsToAvoid = [];
 
-  double awarenessDistance;
-  double awarenessArc;
   List<Point> boidsAwareOf = [];
 
-  double coherenceWeight;
-  double alignmentWeight;
-
   /// create a boid with random velocity starting in the center
-  Boid.createRandom({
-    @required this.speed,
-    @required this.maxTurnSpeed,
-    @required this.separationDistance,
-    @required this.separationWeight,
-    @required this.awarenessDistance,
-    @required this.awarenessArc,
-    @required this.coherenceWeight,
-    @required this.alignmentWeight,
-  }) {
-    _x = 0.5;
-    _y = 0.5;
+  Boid.createRandom() {
+    _x = Random().nextDouble();
+    _y = Random().nextDouble();
 
     _direction = -2 * pi * (Random().nextDouble() * 2 * pi);
-    // _direction = pi / 2;
   }
 
   Point<double> get position => Point<double>(_x, _y);
@@ -307,10 +443,18 @@ class Boid {
   /// process the next step
   void iterate(
     List boids,
-    double ds,
-    bool cohereToPoint,
-    Point<double> coherencePoint,
-  ) {
+    double ds, {
+    @required speed,
+    @required maxTurnSpeed,
+    @required separationDistance,
+    @required separationWeight,
+    @required awarenessDistance,
+    @required awarenessArc,
+    @required coherenceWeight,
+    @required alignmentWeight,
+    @required bool cohereToPoint,
+    @required Point<double> coherencePoint,
+  }) {
     readyForNextTick();
 
     // cohere to point
@@ -341,16 +485,17 @@ class Boid {
         separationTurnAmount += _getTurnAmountToAvoidPoint(boid.position);
       }
 
-      // coherence
-      if (coherenceCumulativePoint == null) {
-        coherenceCumulativePoint = boid.position;
-      } else {
-        coherenceCumulativePoint += boid.position;
-      }
-
-      if (_isAwareOfThisPoint(boid.position)) {
-        // alignment
+      if (_isAwareOfThisPoint(boid.position, awarenessDistance, awarenessArc)) {
         boidsAwareOf.add(boid.position);
+
+        // coherence
+        if (coherenceCumulativePoint == null) {
+          coherenceCumulativePoint = boid.position;
+        } else {
+          coherenceCumulativePoint += boid.position;
+        }
+
+        // alignment
         alignmentCumulativeDirection += boid._direction;
         numBoidsAwareOf++;
       }
@@ -359,12 +504,12 @@ class Boid {
     // separation
     newDirection += separationTurnAmount * separationWeight;
 
-    // coherence
-    final com = Point<double>(coherenceCumulativePoint.x / (boids.length - 1),
-        coherenceCumulativePoint.y / (boids.length - 1));
-    newDirection += _relativeDirectionToOtherPoint(com) * coherenceWeight;
-
     if (numBoidsAwareOf > 0) {
+      // coherence
+      final com = Point<double>(coherenceCumulativePoint.x / numBoidsAwareOf,
+          coherenceCumulativePoint.y / numBoidsAwareOf);
+      newDirection += _relativeDirectionToOtherPoint(com) * coherenceWeight;
+
       // alignment
       final averageDirectionOfOthers =
           alignmentCumulativeDirection / numBoidsAwareOf;
@@ -375,7 +520,7 @@ class Boid {
       newDirection += relativeDirection * alignmentWeight;
     }
 
-    applyNextPosition(ds);
+    applyNextPosition(speed, maxTurnSpeed, ds);
   }
 
   void readyForNextTick() {
@@ -385,7 +530,7 @@ class Boid {
   }
 
   /// dt is microseconds
-  Point<double> nextPostion(double ds) {
+  Point<double> nextPostion(double speed, double ds) {
     var nextX = _x + (cos(_direction) * speed * ds);
     var nextY = _y + (sin(_direction) * speed * ds);
 
@@ -406,7 +551,7 @@ class Boid {
     return Point(nextX, nextY);
   }
 
-  void applyNextPosition(double ds) {
+  void applyNextPosition(double speed, double maxTurnSpeed, double ds) {
     if (newDirection.abs() / ds > maxTurnSpeed) {
       newDirection = newDirection.sign * maxTurnSpeed;
     }
@@ -414,7 +559,7 @@ class Boid {
     _direction += newDirection;
     _direction = _normaliseDirection(_direction);
 
-    final nextPosition = nextPostion(ds);
+    final nextPosition = nextPostion(speed, ds);
 
     _x = nextPosition.x;
     _y = nextPosition.y;
@@ -437,7 +582,11 @@ class Boid {
     return (pi - turn.abs()) * -turn.sign;
   }
 
-  bool _isAwareOfThisPoint(Point<double> point) {
+  bool _isAwareOfThisPoint(
+    Point<double> point,
+    double awarenessDistance,
+    double awarenessArc,
+  ) {
     if (_distanceToOtherPoint(point) <= awarenessDistance) {
       final angleToOtherBoid = _directionToOtherPoint(point);
       final minAngle = _direction - (awarenessArc / 2);
@@ -490,14 +639,13 @@ class Boid {
     if (other is Boid) {
       return other._x == this._x &&
           other._y == this._y &&
-          other._direction == this._direction &&
-          other.speed == this.speed;
+          other._direction == this._direction;
     } else
       return false;
   }
 
   @override
-  int get hashCode => (_x * _y * _direction * speed).toInt();
+  int get hashCode => (_x * _y * _direction).toInt();
 }
 
 class BoidPainter extends CustomPainter {
@@ -506,8 +654,12 @@ class BoidPainter extends CustomPainter {
   final Offset coherencePosition;
   final bool drawAvoidance;
   final bool drawAwareness;
+  final double separationDistance;
+  final double awarenessDistance;
+  final double awarenessArc;
 
   BoidPainter(this.boids, this.cohereToPoint, this.coherencePosition,
+      this.separationDistance, this.awarenessDistance, this.awarenessArc,
       {this.drawAvoidance = true, this.drawAwareness = true});
 
   @override
@@ -566,8 +718,8 @@ class BoidPainter extends CustomPainter {
     // avoidance
     final avoidanceRect = Rect.fromCenter(
       center: boidOffset,
-      width: boid.separationDistance * size.width * 2,
-      height: boid.separationDistance * size.height * 2,
+      width: separationDistance * size.width * 2,
+      height: separationDistance * size.height * 2,
     );
 
     canvas.drawOval(
@@ -594,14 +746,14 @@ class BoidPainter extends CustomPainter {
     // avoidance
     final awarenessRect = Rect.fromCenter(
       center: boidOffset,
-      width: boid.awarenessDistance * size.width * 2,
-      height: boid.awarenessDistance * size.height * 2,
+      width: awarenessDistance * size.width * 2,
+      height: awarenessDistance * size.height * 2,
     );
 
     canvas.drawArc(
       awarenessRect,
-      boid._direction - boid.awarenessArc / 2,
-      boid.awarenessArc,
+      boid._direction - awarenessArc / 2,
+      awarenessArc,
       true,
       Paint()
         ..color = Colors.blue
