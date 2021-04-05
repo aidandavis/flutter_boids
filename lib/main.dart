@@ -206,18 +206,18 @@ class Boid {
     var nextX = _x + (cos(_direction) * speed * ds);
     var nextY = _y + (sin(_direction) * speed * ds);
 
-    // wrapping
+    // don't exit bounds
     if (nextX > 1) {
-      nextX -= 1;
+      nextX = 1;
     }
     if (nextX < 0) {
-      nextX += 1;
+      nextX = 0;
     }
     if (nextY > 1) {
-      nextY -= 1;
+      nextY = 1;
     }
     if (nextY < 0) {
-      nextY += 1;
+      nextY = 0;
     }
 
     return Point(nextX, nextY);
@@ -270,7 +270,7 @@ class Boid {
     var turn = _relativeDirectionToOtherPoint(pointToAvoid);
 
     // we want maximum turning if other boid is straight ahead
-    turn = (2 * pi - (turn + pi)) - pi;
+    turn = (2 * pi - (turn + pi)) * -turn.sign;
 
     return avoidanceWeight * turn;
   }
