@@ -1,5 +1,4 @@
 import 'dart:ui';
-
 import 'package:flutter/material.dart';
 import 'dart:math';
 
@@ -31,7 +30,8 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage>
     with SingleTickerProviderStateMixin {
   static const boidsPerOperation = 15;
-  static const boidLimit = 120;
+  static const boidLimit = 200;
+  static const fpsAverageCount = 10;
 
   // list of boids
   final List<Boid> boids = [];
@@ -39,6 +39,8 @@ class _MyHomePageState extends State<MyHomePage>
   /// time of last frame in microseconds
   int lastFrameTime = 0;
   int dt = 0;
+
+  List<int> fpsList = [];
 
   double speed = 0.2;
   double maxTurnSpeed = 0.075;
@@ -53,6 +55,8 @@ class _MyHomePageState extends State<MyHomePage>
   double alignmentWeight = 0.15;
 
   Offset coherencePosition = Offset(0.5, 0.5);
+
+  bool cohereToPoint = false;
 
   bool drawAvoidance = false;
   bool drawAwareness = false;
@@ -78,9 +82,7 @@ class _MyHomePageState extends State<MyHomePage>
 
     var ds = dt / 1000000;
 
-    if (ds == 0) {
-      ds = 0.0167;
-    }
+    _calculateFps();
 
     while (boids.length > boidLimit) {
       _removeBoids();
@@ -93,9 +95,12 @@ class _MyHomePageState extends State<MyHomePage>
 
       boid.avoidOtherBoids(boids);
 
-      boid.coherence(boids);
-
-      // boid.cohereTowardPoint(Point(coherencePosition.dx, coherencePosition.dy));
+      if (cohereToPoint) {
+        boid.cohereTowardPoint(
+            Point(coherencePosition.dx, coherencePosition.dy));
+      } else {
+        boid.coherence(boids);
+      }
 
       boid.alignment(boids);
 
@@ -103,6 +108,16 @@ class _MyHomePageState extends State<MyHomePage>
     }
 
     setState(() {});
+  }
+
+  void _calculateFps() {
+    final safeDt = dt == 0 ? 1 : dt;
+
+    fpsList.add(1000000 ~/ safeDt);
+
+    if (fpsList.length > fpsAverageCount) {
+      fpsList.removeAt(0);
+    }
   }
 
   void _addBoids([int numToAdd = boidsPerOperation]) {
@@ -137,7 +152,10 @@ class _MyHomePageState extends State<MyHomePage>
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final safeDt = dt == 0 ? 1 : dt;
+
+    final fps = fpsList.isNotEmpty
+        ? fpsList.reduce((value, element) => value + element) / fpsList.length
+        : 60;
 
     return Scaffold(
       body: Container(
@@ -158,6 +176,7 @@ class _MyHomePageState extends State<MyHomePage>
               child: CustomPaint(
                 foregroundPainter: BoidPainter(
                   boids,
+                  cohereToPoint,
                   coherencePosition,
                   drawAvoidance: drawAvoidance,
                   drawAwareness: drawAwareness,
@@ -169,8 +188,7 @@ class _MyHomePageState extends State<MyHomePage>
                   child: Stack(
                     children: [
                       Positioned(
-                        child:
-                            Text('fps: ${1000000 ~/ safeDt} (${boids.length})'),
+                        child: Text('fps: $fps (${boids.length})'),
                       ),
                       Align(
                         alignment: Alignment.bottomCenter,
@@ -213,6 +231,18 @@ class _MyHomePageState extends State<MyHomePage>
                                   onPressed: () {
                                     setState(() {
                                       drawAwareness = !drawAwareness;
+                                    });
+                                  },
+                                ),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(10),
+                                child: ElevatedButton(
+                                  child: Text(
+                                      '${cohereToPoint ? 'Stop' : 'Start'} Cohherence to Point'),
+                                  onPressed: () {
+                                    setState(() {
+                                      cohereToPoint = !cohereToPoint;
                                     });
                                   },
                                 ),
@@ -478,11 +508,12 @@ class Boid {
 
 class BoidPainter extends CustomPainter {
   final List<Boid> boids;
+  final bool cohereToPoint;
   final Offset coherencePosition;
   final bool drawAvoidance;
   final bool drawAwareness;
 
-  BoidPainter(this.boids, this.coherencePosition,
+  BoidPainter(this.boids, this.cohereToPoint, this.coherencePosition,
       {this.drawAvoidance = true, this.drawAwareness = true});
 
   @override
@@ -491,11 +522,13 @@ class BoidPainter extends CustomPainter {
       final boidOffset =
           Offset(boid.position.x * size.width, boid.position.y * size.height);
 
-      canvas.drawCircle(
-        coherencePosition.scale(size.width, size.height),
-        8,
-        Paint()..color = Colors.orange,
-      );
+      if (cohereToPoint) {
+        canvas.drawCircle(
+          coherencePosition.scale(size.width, size.height),
+          8,
+          Paint()..color = Colors.orange,
+        );
+      }
 
       _drawBoid(canvas, size, boid, boidOffset);
 
@@ -558,7 +591,7 @@ class BoidPainter extends CustomPainter {
         otherBoidOffset,
         Paint()
           ..color = Colors.black
-          ..strokeWidth = 2,
+          ..strokeWidth = 1,
       );
     }
 
