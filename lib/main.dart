@@ -86,15 +86,15 @@ class _MyHomePageState extends State<MyHomePage>
     for (var boid in boids) {
       boid.readyForNextTick();
 
-      // boid.avoidWalls(ds);
+      // boid.avoidWalls();
 
-      boid.avoidOtherBoids(boids, ds);
+      boid.avoidOtherBoids(boids);
 
-      // boid.coherence(boids, ds);
+      // boid.coherence(boids);
 
-      boid.cohereTowardPoint(coherencePosition);
+      boid.cohereTowardPoint(Point(coherencePosition.dx, coherencePosition.dy));
 
-      boid.alignment(boids, ds);
+      boid.alignment(boids);
 
       boid.applyNextPosition(ds);
     }
@@ -249,7 +249,7 @@ class Boid {
     // _direction = pi / 2;
   }
 
-  Point get position => Point<double>(_x, _y);
+  Point<double> get position => Point<double>(_x, _y);
 
   void readyForNextTick() {
     newDirection = 0.0;
@@ -302,7 +302,7 @@ class Boid {
     }
   }
 
-  void avoidOtherBoids(List<Boid> boids, double ds) {
+  void avoidOtherBoids(List<Boid> boids) {
     var turnAmount = 0.0;
 
     for (final boid in boids) {
@@ -311,8 +311,7 @@ class Boid {
         continue;
       }
 
-      if (_distanceToOtherPoint(boid.nextPostion(ds), ds) <=
-          avoidanceDistance) {
+      if (_distanceToOtherPoint(boid.position) <= avoidanceDistance) {
         boidsToAvoid.add(boid.position);
 
         turnAmount += _getTurnAmountToAvoidPoint(boid.position);
@@ -322,7 +321,7 @@ class Boid {
     newDirection += turnAmount * avoidanceWeight;
   }
 
-  double _getTurnAmountToAvoidPoint(Point pointToAvoid) {
+  double _getTurnAmountToAvoidPoint(Point<double> pointToAvoid) {
     // we want to turn in opposite direction of other boid
     final turn = _relativeDirectionToOtherPoint(pointToAvoid);
 
@@ -330,12 +329,10 @@ class Boid {
     return (pi - turn.abs()) * -turn.sign;
   }
 
-  bool _isAwareOfThisBoid(Boid boid, double ds) {
-    final nextPosition = boid.nextPostion(ds);
-
-    if (_distanceToOtherPoint(nextPosition, ds) <= awarenessDistance) {
+  bool _isAwareOfThisPoint(Point<double> point) {
+    if (_distanceToOtherPoint(point) <= awarenessDistance) {
       // return true;
-      final angleToOtherBoid = _directionToOtherPoint(boid.position);
+      final angleToOtherBoid = _directionToOtherPoint(point);
       final minAngle = _direction - (awarenessArc / 2);
       final maxAngle = _direction + (awarenessArc / 2);
       return (angleToOtherBoid >= minAngle && angleToOtherBoid <= maxAngle);
@@ -345,7 +342,7 @@ class Boid {
   }
 
   // turn toward center of mass
-  void coherence(List<Boid> boids, double ds) {
+  void coherence(List<Boid> boids) {
     var sumX = 0.0;
     var sumY = 0.0;
     var sumBoids = 0;
@@ -368,13 +365,13 @@ class Boid {
     }
   }
 
-  void cohereTowardPoint(Offset point) {
-    newDirection += _relativeDirectionToOtherPoint(Point(point.dx, point.dy)) *
+  void cohereTowardPoint(Point<double> point) {
+    newDirection += _relativeDirectionToOtherPoint(Point(point.x, point.y)) *
         coherenceWeight;
   }
 
   /// turn to match average direction of other boids
-  void alignment(List<Boid> boids, double ds) {
+  void alignment(List<Boid> boids) {
     var sumDirection = 0.0;
     var sumBoids = 0;
 
@@ -383,7 +380,7 @@ class Boid {
         continue;
       }
 
-      if (_isAwareOfThisBoid(boid, ds)) {
+      if (_isAwareOfThisPoint(boid.position)) {
         boidsAwareOf.add(boid.position);
         sumDirection = sumDirection;
         sumBoids++;
@@ -400,42 +397,41 @@ class Boid {
     }
   }
 
-  void avoidWalls(double ds) {
+  void avoidWalls() {
     var turnAmount = 0.0;
-    final nextPosition = nextPostion(ds);
 
     // left
-    if (nextPosition.x < avoidanceDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(0, nextPosition.y));
+    if (_x < avoidanceDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(0, _y));
     }
 
     // right
-    if (nextPosition.x > 1 - avoidanceDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(1, nextPosition.y));
+    if (_x > 1 - avoidanceDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(1, _y));
     }
 
     // top
-    if (nextPosition.y < avoidanceDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(nextPosition.x, 0));
+    if (_y < avoidanceDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 0));
     }
 
     // bottom
-    if (nextPosition.y > 1 - avoidanceDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(nextPosition.x, 1));
+    if (_y > 1 - avoidanceDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 1));
     }
 
     newDirection += _normaliseDirection(turnAmount);
   }
 
-  double _distanceToOtherPoint(Point point, double ds) =>
-      nextPostion(ds).distanceTo(point);
+  double _distanceToOtherPoint(Point<double> point) =>
+      position.distanceTo(point);
 
   /// not relative to current direction
-  double _directionToOtherPoint(Point point) =>
+  double _directionToOtherPoint(Point<double> point) =>
       atan2(point.y - _y, point.x - _x);
 
   /// -pi to pi
-  double _relativeDirectionToOtherPoint(Point point) {
+  double _relativeDirectionToOtherPoint(Point<double> point) {
     return _normaliseDirection(_directionToOtherPoint(point) - _direction);
   }
 
