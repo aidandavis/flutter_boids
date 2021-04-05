@@ -42,17 +42,17 @@ class _MyHomePageState extends State<MyHomePage>
 
   List<int> fpsList = [];
 
-  double speed = 0.2;
-  double maxTurnSpeed = 0.1;
+  double speed = 0.15;
+  double maxTurnSpeed = 0.05;
 
   double avoidanceDistance = 0.02;
-  double avoidanceWeight = 0.5;
+  double avoidanceWeight = 0.375;
 
   double awarenessArc = pi;
-  double awarenessDistance = 0.15;
+  double awarenessDistance = 0.1;
 
-  double coherenceWeight = 0.1;
-  double alignmentWeight = 0.1;
+  double coherenceWeight = 0.05;
+  double alignmentWeight = 0.125;
 
   Offset coherencePosition = Offset(0.5, 0.5);
 
@@ -88,23 +88,13 @@ class _MyHomePageState extends State<MyHomePage>
       _removeBoids();
     }
 
-    for (var boid in boids) {
-      boid.readyForNextTick();
-
-      // boid.avoidWalls();
-
-      boid.avoidOtherBoids(boids);
-
-      if (cohereToPoint) {
-        boid.cohereTowardPoint(
-            Point(coherencePosition.dx, coherencePosition.dy));
-      } else {
-        boid.coherence(boids);
-      }
-
-      boid.alignment(boids);
-
-      boid.applyNextPosition(ds);
+    for (Boid boid in boids) {
+      boid.iterate(
+        boids,
+        ds,
+        cohereToPoint,
+        Point(coherencePosition.dx, coherencePosition.dy),
+      );
     }
 
     setState(() {});
@@ -126,8 +116,8 @@ class _MyHomePageState extends State<MyHomePage>
         boids.add(Boid.createRandom(
           speed: speed,
           maxTurnSpeed: maxTurnSpeed,
-          avoidanceDistance: avoidanceDistance,
-          avoidanceWeight: avoidanceWeight,
+          separationDistance: avoidanceDistance,
+          separationWeight: avoidanceWeight,
           awarenessDistance: awarenessDistance,
           awarenessArc: awarenessArc,
           coherenceWeight: coherenceWeight,
@@ -282,8 +272,8 @@ class Boid {
   double speed;
   double maxTurnSpeed; // how many radians per second this boid can turn
 
-  double avoidanceDistance;
-  double avoidanceWeight;
+  double separationDistance;
+  double separationWeight;
 
   List<Point> boidsToAvoid = [];
 
@@ -298,8 +288,8 @@ class Boid {
   Boid.createRandom({
     @required this.speed,
     @required this.maxTurnSpeed,
-    @required this.avoidanceDistance,
-    @required this.avoidanceWeight,
+    @required this.separationDistance,
+    @required this.separationWeight,
     @required this.awarenessDistance,
     @required this.awarenessArc,
     @required this.coherenceWeight,
@@ -313,6 +303,80 @@ class Boid {
   }
 
   Point<double> get position => Point<double>(_x, _y);
+
+  /// process the next step
+  void iterate(
+    List boids,
+    double ds,
+    bool cohereToPoint,
+    Point<double> coherencePoint,
+  ) {
+    readyForNextTick();
+
+    // cohere to point
+    if (cohereToPoint) {
+      newDirection +=
+          _relativeDirectionToOtherPoint(coherencePoint) * coherenceWeight * 2;
+    }
+
+    // avoidWalls();
+
+    var separationTurnAmount = 0.0;
+    var coherenceCumulativePoint;
+    var alignmentCumulativeDirection = 0.0;
+
+    var numBoidsAwareOf = 0;
+
+    for (Boid boid in boids) {
+      // this will be a part of the list
+      if (boid == this) {
+        continue;
+      }
+
+      final distanceToOtherBoid = _distanceToOtherPoint(boid.position);
+
+      // separation
+      if (distanceToOtherBoid <= separationDistance) {
+        boidsToAvoid.add(boid.position);
+        separationTurnAmount += _getTurnAmountToAvoidPoint(boid.position);
+      }
+
+      // coherence
+      if (coherenceCumulativePoint == null) {
+        coherenceCumulativePoint = boid.position;
+      } else {
+        coherenceCumulativePoint += boid.position;
+      }
+
+      if (_isAwareOfThisPoint(boid.position)) {
+        // alignment
+        boidsAwareOf.add(boid.position);
+        alignmentCumulativeDirection += boid._direction;
+        numBoidsAwareOf++;
+      }
+    }
+
+    // separation
+    newDirection += separationTurnAmount * separationWeight;
+
+    // coherence
+    final com = Point<double>(coherenceCumulativePoint.x / (boids.length - 1),
+        coherenceCumulativePoint.y / (boids.length - 1));
+    newDirection += _relativeDirectionToOtherPoint(com) * coherenceWeight;
+
+    if (numBoidsAwareOf > 0) {
+      // alignment
+      final averageDirectionOfOthers =
+          alignmentCumulativeDirection / numBoidsAwareOf;
+
+      final relativeDirection =
+          _normaliseDirection(averageDirectionOfOthers - _direction);
+
+      newDirection += relativeDirection * alignmentWeight;
+    }
+
+    applyNextPosition(ds);
+  }
 
   void readyForNextTick() {
     newDirection = 0.0;
@@ -343,7 +407,7 @@ class Boid {
   }
 
   void applyNextPosition(double ds) {
-    if (newDirection.abs() > maxTurnSpeed) {
+    if (newDirection.abs() / ds > maxTurnSpeed) {
       newDirection = newDirection.sign * maxTurnSpeed;
     }
 
@@ -365,25 +429,6 @@ class Boid {
     }
   }
 
-  void avoidOtherBoids(List<Boid> boids) {
-    var turnAmount = 0.0;
-
-    for (final boid in boids) {
-      // this boid will be part of the list, so skip it
-      if (boid == this) {
-        continue;
-      }
-
-      if (_distanceToOtherPoint(boid.position) <= avoidanceDistance) {
-        boidsToAvoid.add(boid.position);
-
-        turnAmount += _getTurnAmountToAvoidPoint(boid.position);
-      }
-    }
-
-    newDirection += turnAmount * avoidanceWeight;
-  }
-
   double _getTurnAmountToAvoidPoint(Point<double> pointToAvoid) {
     // we want to turn in opposite direction of other boid
     final turn = _relativeDirectionToOtherPoint(pointToAvoid);
@@ -394,7 +439,6 @@ class Boid {
 
   bool _isAwareOfThisPoint(Point<double> point) {
     if (_distanceToOtherPoint(point) <= awarenessDistance) {
-      // return true;
       final angleToOtherBoid = _directionToOtherPoint(point);
       final minAngle = _direction - (awarenessArc / 2);
       final maxAngle = _direction + (awarenessArc / 2);
@@ -404,87 +448,31 @@ class Boid {
     }
   }
 
-  // turn toward center of mass
-  void coherence(List<Boid> boids) {
-    var sumX = 0.0;
-    var sumY = 0.0;
-    var sumBoids = 0;
+  // void avoidWalls() {
+  //   var turnAmount = 0.0;
 
-    for (Boid boid in boids) {
-      if (boid == this) {
-        continue;
-      }
+  //   // left
+  //   if (_x < separationDistance) {
+  //     turnAmount += _getTurnAmountToAvoidPoint(Point(0, _y));
+  //   }
 
-      // if (_isAwareOfThisPoint(boid.position)) {
-      sumX += boid.position.x;
-      sumY += boid.position.y;
-      sumBoids++;
-      // }
-    }
+  //   // right
+  //   if (_x > 1 - separationDistance) {
+  //     turnAmount += _getTurnAmountToAvoidPoint(Point(1, _y));
+  //   }
 
-    if (sumBoids > 0) {
-      final com = Point(sumX / sumBoids, sumY / sumBoids);
-      newDirection += _relativeDirectionToOtherPoint(com) * coherenceWeight;
-    }
-  }
+  //   // top
+  //   if (_y < separationDistance) {
+  //     turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 0));
+  //   }
 
-  void cohereTowardPoint(Point<double> point) {
-    newDirection += _relativeDirectionToOtherPoint(Point(point.x, point.y)) *
-        coherenceWeight;
-  }
+  //   // bottom
+  //   if (_y > 1 - separationDistance) {
+  //     turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 1));
+  //   }
 
-  /// turn to match average direction of other boids
-  void alignment(List<Boid> boids) {
-    var sumDirection = 0.0;
-    var sumBoids = 0;
-
-    for (Boid boid in boids) {
-      if (boid == this) {
-        continue;
-      }
-
-      if (_isAwareOfThisPoint(boid.position)) {
-        boidsAwareOf.add(boid.position);
-        sumDirection = sumDirection;
-        sumBoids++;
-      }
-    }
-
-    if (sumBoids > 0) {
-      final averageDirectionOfOthers = sumDirection / sumBoids;
-
-      final relativeDirection =
-          _normaliseDirection(averageDirectionOfOthers - _direction);
-
-      newDirection += relativeDirection * alignmentWeight;
-    }
-  }
-
-  void avoidWalls() {
-    var turnAmount = 0.0;
-
-    // left
-    if (_x < avoidanceDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(0, _y));
-    }
-
-    // right
-    if (_x > 1 - avoidanceDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(1, _y));
-    }
-
-    // top
-    if (_y < avoidanceDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 0));
-    }
-
-    // bottom
-    if (_y > 1 - avoidanceDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 1));
-    }
-
-    newDirection += _normaliseDirection(turnAmount);
-  }
+  //   newDirection += _normaliseDirection(turnAmount);
+  // }
 
   double _distanceToOtherPoint(Point<double> point) =>
       position.distanceTo(point);
@@ -578,8 +566,8 @@ class BoidPainter extends CustomPainter {
     // avoidance
     final avoidanceRect = Rect.fromCenter(
       center: boidOffset,
-      width: boid.avoidanceDistance * size.width * 2,
-      height: boid.avoidanceDistance * size.height * 2,
+      width: boid.separationDistance * size.width * 2,
+      height: boid.separationDistance * size.height * 2,
     );
 
     canvas.drawOval(
@@ -600,56 +588,6 @@ class BoidPainter extends CustomPainter {
           ..strokeWidth = 1,
       );
     }
-
-    // // left
-    // canvas.drawArc(
-    //   avoidanceRect,
-    //   boid._direction - boid.avoidanceArc / 2,
-    //   boid.avoidanceArc / 2,
-    //   true,
-    //   Paint()
-    //     ..color = Colors.blue
-    //     ..style = PaintingStyle.stroke
-    //     ..strokeWidth = 2,
-    // );
-    // if (boid.newDirection.sign < 0) {
-    //   canvas.drawArc(
-    //     avoidanceRect,
-    //     boid._direction - boid.avoidanceArc / 2,
-    //     boid.avoidanceArc / 2,
-    //     true,
-    //     Paint()
-    //       ..color = Colors.blue
-    //           .withOpacity(0.5 * boid.newDirection.abs() / boid.maxTurnSpeed)
-    //       ..style = PaintingStyle.fill
-    //       ..strokeWidth = 2,
-    //   );
-    // }
-
-    // // right
-    // canvas.drawArc(
-    //   avoidanceRect,
-    //   boid._direction,
-    //   boid.avoidanceArc / 2,
-    //   true,
-    //   Paint()
-    //     ..color = Colors.red
-    //     ..style = PaintingStyle.stroke
-    //     ..strokeWidth = 2,
-    // );
-    // if (boid.newDirection.sign > 0) {
-    //   canvas.drawArc(
-    //     avoidanceRect,
-    //     boid._direction,
-    //     boid.avoidanceArc / 2,
-    //     true,
-    //     Paint()
-    //       ..color = Colors.red
-    //           .withOpacity(0.5 * boid.newDirection.abs() / boid.maxTurnSpeed)
-    //       ..style = PaintingStyle.fill
-    //       ..strokeWidth = 2,
-    //   );
-    // }
   }
 
   void _drawAwareness(Canvas canvas, Size size, Boid boid, Offset boidOffset) {
