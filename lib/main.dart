@@ -160,103 +160,105 @@ class _MyHomePageState extends State<MyHomePage>
     return Scaffold(
       body: Container(
         color: Colors.grey[900],
-        child: Center(
-          child: SizedBox(
-            height: screenSize.shortestSide,
-            width: screenSize.shortestSide,
-            child: GestureDetector(
-              onPanUpdate: (details) {
-                setState(() {
-                  coherencePosition = Offset(
-                    details.localPosition.dx / screenSize.shortestSide,
-                    details.localPosition.dy / screenSize.shortestSide,
-                  );
-                });
-              },
-              child: CustomPaint(
-                foregroundPainter: BoidPainter(
-                  boids,
-                  cohereToPoint,
-                  coherencePosition,
-                  drawAvoidance: drawAvoidance,
-                  drawAwareness: drawAwareness,
-                ),
-                child: Container(
-                  color: Colors.grey[200],
-                  height: screenSize.height,
-                  width: screenSize.width,
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        child: Text('fps: $fps (${boids.length})'),
-                      ),
-                      Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Wrap(
-                            alignment: WrapAlignment.center,
-                            children: [
-                              Padding(
-                                padding: EdgeInsets.all(10),
-                                child: ElevatedButton(
-                                  child: Text('Add boids'),
-                                  onPressed: () => _addBoids(),
-                                ),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.all(10),
-                                child: ElevatedButton(
-                                  child: Text('Remove boids'),
-                                  onPressed: () => _removeBoids(),
-                                ),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.all(10),
-                                child: ElevatedButton(
-                                  child: Text(
-                                      '${drawAvoidance ? 'Hide' : 'Show'} Avoidance'),
-                                  onPressed: () {
-                                    setState(() {
-                                      drawAvoidance = !drawAvoidance;
-                                    });
-                                  },
-                                ),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.all(10),
-                                child: ElevatedButton(
-                                  child: Text(
-                                      '${drawAwareness ? 'Hide' : 'Show'} Awareness'),
-                                  onPressed: () {
-                                    setState(() {
-                                      drawAwareness = !drawAwareness;
-                                    });
-                                  },
-                                ),
-                              ),
-                              Padding(
-                                padding: EdgeInsets.all(10),
-                                child: ElevatedButton(
-                                  child: Text(
-                                      '${cohereToPoint ? 'Stop' : 'Start'} Cohherence to Point'),
-                                  onPressed: () {
-                                    setState(() {
-                                      cohereToPoint = !cohereToPoint;
-                                    });
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+        child: Stack(
+          children: [
+            Center(
+              child: Container(
+                color: Colors.grey[800],
+                child: GestureDetector(
+                  onPanUpdate: (details) {
+                    setState(() {
+                      coherencePosition = Offset(
+                        details.localPosition.dx / screenSize.shortestSide,
+                        details.localPosition.dy / screenSize.shortestSide,
+                      );
+                    });
+                  },
+                  child: CustomPaint(
+                    size: Size(
+                      screenSize.shortestSide,
+                      screenSize.shortestSide,
+                    ),
+                    foregroundPainter: BoidPainter(
+                      boids,
+                      cohereToPoint,
+                      coherencePosition,
+                      drawAvoidance: drawAvoidance,
+                      drawAwareness: drawAwareness,
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
+            Positioned(
+              top: 10,
+              left: 10,
+              child: Text(
+                'fps: $fps (${boids.length})',
+                style: TextStyle(
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.all(10),
+                    child: ElevatedButton(
+                      child: Text('Add boids'),
+                      onPressed: () => _addBoids(),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.all(10),
+                    child: ElevatedButton(
+                      child: Text('Remove boids'),
+                      onPressed: () => _removeBoids(),
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.all(10),
+                    child: ElevatedButton(
+                      child:
+                          Text('${drawAvoidance ? 'Hide' : 'Show'} Avoidance'),
+                      onPressed: () {
+                        setState(() {
+                          drawAvoidance = !drawAvoidance;
+                        });
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.all(10),
+                    child: ElevatedButton(
+                      child:
+                          Text('${drawAwareness ? 'Hide' : 'Show'} Awareness'),
+                      onPressed: () {
+                        setState(() {
+                          drawAwareness = !drawAwareness;
+                        });
+                      },
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.all(10),
+                    child: ElevatedButton(
+                      child: Text(
+                          '${cohereToPoint ? 'Stop' : 'Start'} Cohherence to Point'),
+                      onPressed: () {
+                        setState(() {
+                          cohereToPoint = !cohereToPoint;
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -409,7 +411,7 @@ class Boid {
         continue;
       }
 
-      // if (_isAwareOfThisBoid(boid, ds)) {
+      // if (_isAwareOfThisPoint(boid.position)) {
       sumX += boid.position.x;
       sumY += boid.position.y;
       sumBoids++;
