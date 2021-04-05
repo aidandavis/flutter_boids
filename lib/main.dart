@@ -41,18 +41,21 @@ class _MyHomePageState extends State<MyHomePage>
   int dt = 0;
 
   double speed = 0.2;
-  double maxTurnSpeed = 0.05;
+  double maxTurnSpeed = 0.075;
 
   double avoidanceDistance = 0.02;
   double avoidanceWeight = 0.5;
 
-  double awarenessArc = (5 / 4) * pi;
+  double awarenessArc = pi;
   double awarenessDistance = 0.1;
 
   double coherenceWeight = 0.2;
-  double alignmentWeight = 0.1;
+  double alignmentWeight = 0.15;
 
   Offset coherencePosition = Offset(0.5, 0.5);
+
+  bool drawAvoidance = false;
+  bool drawAwareness = false;
 
   @override
   void initState() {
@@ -86,13 +89,13 @@ class _MyHomePageState extends State<MyHomePage>
     for (var boid in boids) {
       boid.readyForNextTick();
 
-      // boid.avoidWalls();
+      boid.avoidWalls();
 
       boid.avoidOtherBoids(boids);
 
-      // boid.coherence(boids);
+      boid.coherence(boids);
 
-      boid.cohereTowardPoint(Point(coherencePosition.dx, coherencePosition.dy));
+      // boid.cohereTowardPoint(Point(coherencePosition.dx, coherencePosition.dy));
 
       boid.alignment(boids);
 
@@ -156,8 +159,8 @@ class _MyHomePageState extends State<MyHomePage>
                 foregroundPainter: BoidPainter(
                   boids,
                   coherencePosition,
-                  drawAvoidance: false,
-                  drawAwareness: false,
+                  drawAvoidance: drawAvoidance,
+                  drawAwareness: drawAwareness,
                 ),
                 child: Container(
                   color: Colors.grey[200],
@@ -188,6 +191,30 @@ class _MyHomePageState extends State<MyHomePage>
                                 child: ElevatedButton(
                                   child: Text('Remove boids'),
                                   onPressed: () => _removeBoids(),
+                                ),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(10),
+                                child: ElevatedButton(
+                                  child: Text(
+                                      '${drawAvoidance ? 'Hide' : 'Show'} Avoidance'),
+                                  onPressed: () {
+                                    setState(() {
+                                      drawAvoidance = !drawAvoidance;
+                                    });
+                                  },
+                                ),
+                              ),
+                              Padding(
+                                padding: EdgeInsets.all(10),
+                                child: ElevatedButton(
+                                  child: Text(
+                                      '${drawAwareness ? 'Hide' : 'Show'} Awareness'),
+                                  onPressed: () {
+                                    setState(() {
+                                      drawAwareness = !drawAwareness;
+                                    });
+                                  },
                                 ),
                               ),
                             ],
