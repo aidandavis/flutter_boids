@@ -40,11 +40,11 @@ class _MyHomePageState extends State<MyHomePage>
   int lastFrameTime = 0;
   int dt = 0;
 
-  double speed = 0.05;
-  double maxTurnSpeed = 0.2;
+  double speed = 0.1;
+  double maxTurnSpeed = 0.1;
 
   double avoidanceDistance = 0.01;
-  double avoidanceWeight = 0.25;
+  double avoidanceWeight = 0.1;
 
   @override
   void initState() {
@@ -220,6 +220,15 @@ class Boid {
       nextY = 0;
     }
 
+    // by not exiting bounds, can get stuck sometimes
+    if (nextX == _x && (nextX == 0) || nextX == 1) {
+      _direction += 0.1;
+    }
+
+    if (nextY == _y && (nextY == 0) || nextY == 1) {
+      _direction += 0.1;
+    }
+
     return Point(nextX, nextY);
   }
 
@@ -262,7 +271,7 @@ class Boid {
       }
     }
 
-    newDirection += _normaliseDirection(turnAmount);
+    newDirection += _normaliseDirection(turnAmount) * avoidanceWeight;
   }
 
   double _getTurnAmountToAvoidPoint(Point pointToAvoid) {
@@ -270,9 +279,7 @@ class Boid {
     var turn = _relativeDirectionToOtherPoint(pointToAvoid);
 
     // we want maximum turning if other boid is straight ahead
-    turn = (2 * pi - (turn + pi)) * -turn.sign;
-
-    return avoidanceWeight * turn;
+    return (pi - turn.abs()) * -turn.sign;
   }
 
   void turnTowardCentreOfMass(List<Boid> boids, double ds) {}
@@ -303,7 +310,7 @@ class Boid {
       turnAmount += _getTurnAmountToAvoidPoint(Point(nextPosition.x, 1));
     }
 
-    newDirection += _normaliseDirection(turnAmount);
+    newDirection += _normaliseDirection(turnAmount) * avoidanceWeight;
   }
 
   double _distanceToOtherPoint(Point point) => position.distanceTo(point);
