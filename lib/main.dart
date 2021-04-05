@@ -31,7 +31,7 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage>
     with SingleTickerProviderStateMixin {
   static const boidsPerOperation = 15;
-  static const boidLimit = 200;
+  static const boidLimit = 150;
 
   // list of boids
   final List<Boid> boids = [];
@@ -43,14 +43,20 @@ class _MyHomePageState extends State<MyHomePage>
   double speed = 0.1;
   double maxTurnSpeed = 0.1;
 
-  double avoidanceDistance = 0.01;
-  double avoidanceWeight = 0.1;
+  double avoidanceDistance = 0.02;
+  double avoidanceWeight = 0.5;
+
+  double awarenessArc = (5 / 4) * pi;
+  double awarenessDistance = 0.1;
+
+  double coherenceWeight = 0.1;
+  double alignmentWeight = 0.1;
 
   @override
   void initState() {
     super.initState();
 
-    _addBoids(10);
+    _addBoids(15);
 
     createTicker(_tick)..start();
   }
@@ -78,9 +84,13 @@ class _MyHomePageState extends State<MyHomePage>
     for (var boid in boids) {
       boid.readyForNextTick();
 
-      boid.avoidWalls(ds);
+      // boid.avoidWalls(ds);
 
       boid.avoidOtherBoids(boids, ds);
+
+      boid.coherence(boids, ds);
+
+      boid.alignment(boids, ds);
 
       boid.applyNextPosition(ds);
     }
@@ -96,6 +106,10 @@ class _MyHomePageState extends State<MyHomePage>
           maxTurnSpeed: maxTurnSpeed,
           avoidanceDistance: avoidanceDistance,
           avoidanceWeight: avoidanceWeight,
+          awarenessDistance: awarenessDistance,
+          awarenessArc: awarenessArc,
+          coherenceWeight: coherenceWeight,
+          alignmentWeight: alignmentWeight,
         ));
       }
     });
@@ -180,12 +194,23 @@ class Boid {
 
   List<Point> boidsToAvoid = [];
 
+  double awarenessDistance;
+  double awarenessArc;
+  List<Point> boidsAwareOf = [];
+
+  double coherenceWeight;
+  double alignmentWeight;
+
   /// create a boid with random velocity starting in the center
   Boid.createRandom({
     @required this.speed,
     @required this.maxTurnSpeed,
     @required this.avoidanceDistance,
     @required this.avoidanceWeight,
+    @required this.awarenessDistance,
+    @required this.awarenessArc,
+    @required this.coherenceWeight,
+    @required this.alignmentWeight,
   }) {
     _x = 0.5;
     _y = 0.5;
@@ -194,11 +219,12 @@ class Boid {
     // _direction = pi / 2;
   }
 
-  get position => Point<double>(_x, _y);
+  Point get position => Point<double>(_x, _y);
 
   void readyForNextTick() {
     newDirection = 0.0;
     boidsToAvoid.clear();
+    boidsAwareOf.clear();
   }
 
   /// dt is microseconds
@@ -206,27 +232,18 @@ class Boid {
     var nextX = _x + (cos(_direction) * speed * ds);
     var nextY = _y + (sin(_direction) * speed * ds);
 
-    // don't exit bounds
+    // wrap
     if (nextX > 1) {
-      nextX = 1;
+      nextX -= 1;
     }
     if (nextX < 0) {
-      nextX = 0;
+      nextX += 1;
     }
     if (nextY > 1) {
-      nextY = 1;
+      nextY -= 1;
     }
     if (nextY < 0) {
-      nextY = 0;
-    }
-
-    // by not exiting bounds, can get stuck sometimes
-    if (nextX == _x && (nextX == 0) || nextX == 1) {
-      _direction += 0.1;
-    }
-
-    if (nextY == _y && (nextY == 0) || nextY == 1) {
-      _direction += 0.1;
+      nextY += 1;
     }
 
     return Point(nextX, nextY);
@@ -264,27 +281,89 @@ class Boid {
         continue;
       }
 
-      if (_distanceToOtherPoint(boid.position) <= avoidanceDistance) {
+      if (_distanceToOtherPoint(boid.nextPostion(ds), ds) <=
+          avoidanceDistance) {
         boidsToAvoid.add(boid.position);
 
         turnAmount += _getTurnAmountToAvoidPoint(boid.position);
       }
     }
 
-    newDirection += _normaliseDirection(turnAmount) * avoidanceWeight;
+    newDirection += turnAmount * avoidanceWeight;
   }
 
   double _getTurnAmountToAvoidPoint(Point pointToAvoid) {
     // we want to turn in opposite direction of other boid
-    var turn = _relativeDirectionToOtherPoint(pointToAvoid);
+    final turn = _relativeDirectionToOtherPoint(pointToAvoid);
 
     // we want maximum turning if other boid is straight ahead
     return (pi - turn.abs()) * -turn.sign;
   }
 
-  void turnTowardCentreOfMass(List<Boid> boids, double ds) {}
+  bool _isAwareOfThisBoid(Boid boid, double ds) {
+    final nextPosition = boid.nextPostion(ds);
 
-  void turnTowardDirectionOfOtherBoids(List<Boid> boids, double ds) {}
+    if (_distanceToOtherPoint(nextPosition, ds) <= awarenessDistance) {
+      // return true;
+      final angleToOtherBoid = _directionToOtherPoint(boid.position);
+      final minAngle = _direction - (awarenessArc / 2);
+      final maxAngle = _direction + (awarenessArc / 2);
+      return (angleToOtherBoid >= minAngle && angleToOtherBoid <= maxAngle);
+    } else {
+      return false;
+    }
+  }
+
+  // turn toward center of mass
+  void coherence(List<Boid> boids, double ds) {
+    var sumX = 0.0;
+    var sumY = 0.0;
+    var sumBoids = 0;
+
+    for (Boid boid in boids) {
+      if (boid == this) {
+        continue;
+      }
+
+      if (_isAwareOfThisBoid(boid, ds)) {
+        sumX += boid.position.x;
+        sumY += boid.position.y;
+        sumBoids++;
+      }
+    }
+
+    if (sumBoids > 0) {
+      final com = Point(sumX / sumBoids, sumY / sumBoids);
+      newDirection += _relativeDirectionToOtherPoint(com) * coherenceWeight;
+    }
+  }
+
+  /// turn to match average direction of other boids
+  void alignment(List<Boid> boids, double ds) {
+    var sumDirection = 0.0;
+    var sumBoids = 0;
+
+    for (Boid boid in boids) {
+      if (boid == this) {
+        continue;
+      }
+
+      if (_isAwareOfThisBoid(boid, ds)) {
+        boidsAwareOf.add(boid.position);
+        sumDirection = sumDirection;
+        sumBoids++;
+      }
+    }
+
+    if (sumBoids > 0) {
+      final averageDirectionOfOthers = sumDirection / sumBoids;
+
+      final relativeDirection =
+          _normaliseDirection(averageDirectionOfOthers - _direction);
+
+      newDirection += relativeDirection * alignmentWeight;
+    }
+  }
 
   void avoidWalls(double ds) {
     var turnAmount = 0.0;
@@ -310,10 +389,11 @@ class Boid {
       turnAmount += _getTurnAmountToAvoidPoint(Point(nextPosition.x, 1));
     }
 
-    newDirection += _normaliseDirection(turnAmount) * avoidanceWeight;
+    newDirection += _normaliseDirection(turnAmount);
   }
 
-  double _distanceToOtherPoint(Point point) => position.distanceTo(point);
+  double _distanceToOtherPoint(Point point, double ds) =>
+      nextPostion(ds).distanceTo(point);
 
   /// not relative to current direction
   double _directionToOtherPoint(Point point) =>
@@ -351,25 +431,22 @@ class BoidPainter extends CustomPainter {
 
       _drawBoid(canvas, size, boid, boidOffset);
 
-      _drawAvoidance(canvas, size, boid, boidOffset);
-
-      for (final otherBoid in boid.boidsToAvoid) {
-        final otherBoidOffset =
-            Offset(otherBoid.x * size.width, otherBoid.y * size.height);
-        canvas.drawLine(
-          boidOffset,
-          otherBoidOffset,
-          Paint()
-            ..color = Colors.black
-            ..strokeWidth = 2,
-        );
+      try {
+        _drawAvoidance(canvas, size, boid, boidOffset);
+      } catch (e) {
+        print(e);
+        print('avoidance');
+      }
+      try {
+        _drawAwareness(canvas, size, boid, boidOffset);
+      } catch (e) {
+        print(e);
+        print('awareness');
       }
     }
   }
 
   void _drawBoid(Canvas canvas, Size size, Boid boid, Offset boidOffset) {
-    // canvas.drawCircle(boidOffset, 4, Paint()..color = Colors.red);
-
     // draw a little triangle
     final boidPath = Path()
       ..addPolygon(
@@ -409,6 +486,18 @@ class BoidPainter extends CustomPainter {
         ..color = Colors.black
         ..style = PaintingStyle.stroke,
     );
+
+    for (final otherBoid in boid.boidsToAvoid) {
+      final otherBoidOffset =
+          Offset(otherBoid.x * size.width, otherBoid.y * size.height);
+      canvas.drawLine(
+        boidOffset,
+        otherBoidOffset,
+        Paint()
+          ..color = Colors.black
+          ..strokeWidth = 2,
+      );
+    }
 
     // // left
     // canvas.drawArc(
@@ -459,6 +548,35 @@ class BoidPainter extends CustomPainter {
     //       ..strokeWidth = 2,
     //   );
     // }
+  }
+
+  void _drawAwareness(Canvas canvas, Size size, Boid boid, Offset boidOffset) {
+    // avoidance
+    final awarenessRect = Rect.fromCenter(
+      center: boidOffset,
+      width: boid.awarenessDistance * size.width * 2,
+      height: boid.awarenessDistance * size.height * 2,
+    );
+
+    canvas.drawArc(
+      awarenessRect,
+      boid._direction - boid.awarenessArc / 2,
+      boid.awarenessArc,
+      true,
+      Paint()
+        ..color = Colors.blue
+        ..style = PaintingStyle.stroke,
+    );
+
+    for (final otherBoid in boid.boidsAwareOf) {
+      final otherBoidOffset =
+          Offset(otherBoid.x * size.width, otherBoid.y * size.height);
+      canvas.drawLine(
+        boidOffset,
+        otherBoidOffset,
+        Paint()..color = Colors.green,
+      );
+    }
   }
 
   @override
