@@ -43,16 +43,16 @@ class _MyHomePageState extends State<MyHomePage>
   List<int> fpsList = [];
 
   double speed = 0.2;
-  double maxTurnSpeed = 0.075;
+  double maxTurnSpeed = 0.1;
 
   double avoidanceDistance = 0.02;
   double avoidanceWeight = 0.5;
 
   double awarenessArc = pi;
-  double awarenessDistance = 0.1;
+  double awarenessDistance = 0.15;
 
-  double coherenceWeight = 0.2;
-  double alignmentWeight = 0.15;
+  double coherenceWeight = 0.1;
+  double alignmentWeight = 0.1;
 
   Offset coherencePosition = Offset(0.5, 0.5);
 
@@ -91,7 +91,7 @@ class _MyHomePageState extends State<MyHomePage>
     for (var boid in boids) {
       boid.readyForNextTick();
 
-      boid.avoidWalls();
+      // boid.avoidWalls();
 
       boid.avoidOtherBoids(boids);
 
@@ -164,28 +164,32 @@ class _MyHomePageState extends State<MyHomePage>
           children: [
             Center(
               child: Container(
+                height: screenSize.shortestSide,
+                width: screenSize.shortestSide,
                 color: Colors.grey[800],
-                child: GestureDetector(
-                  onPanUpdate: (details) {
-                    setState(() {
-                      coherencePosition = Offset(
-                        details.localPosition.dx / screenSize.shortestSide,
-                        details.localPosition.dy / screenSize.shortestSide,
-                      );
-                    });
-                  },
-                  child: CustomPaint(
-                    size: Size(
-                      screenSize.shortestSide,
-                      screenSize.shortestSide,
-                    ),
-                    foregroundPainter: BoidPainter(
-                      boids,
-                      cohereToPoint,
-                      coherencePosition,
-                      drawAvoidance: drawAvoidance,
-                      drawAwareness: drawAwareness,
-                    ),
+              ),
+            ),
+            Center(
+              child: GestureDetector(
+                onPanUpdate: (details) {
+                  setState(() {
+                    coherencePosition = Offset(
+                      details.localPosition.dx / screenSize.shortestSide,
+                      details.localPosition.dy / screenSize.shortestSide,
+                    );
+                  });
+                },
+                child: CustomPaint(
+                  size: Size(
+                    screenSize.shortestSide,
+                    screenSize.shortestSide,
+                  ),
+                  painter: BoidPainter(
+                    boids,
+                    cohereToPoint,
+                    coherencePosition,
+                    drawAvoidance: drawAvoidance,
+                    drawAwareness: drawAwareness,
                   ),
                 ),
               ),
@@ -520,17 +524,17 @@ class BoidPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (cohereToPoint) {
+      canvas.drawCircle(
+        coherencePosition.scale(size.width, size.height),
+        8,
+        Paint()..color = Colors.orange,
+      );
+    }
+
     for (var boid in boids) {
       final boidOffset =
           Offset(boid.position.x * size.width, boid.position.y * size.height);
-
-      if (cohereToPoint) {
-        canvas.drawCircle(
-          coherencePosition.scale(size.width, size.height),
-          8,
-          Paint()..color = Colors.orange,
-        );
-      }
 
       _drawBoid(canvas, size, boid, boidOffset);
 
