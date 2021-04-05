@@ -44,7 +44,7 @@ class _MyHomePageState extends State<MyHomePage>
   double maxTurnSpeed = 0.2;
 
   double avoidanceDistance = 0.01;
-  double avoidanceWeight = 0.5;
+  double avoidanceWeight = 0.25;
 
   @override
   void initState() {
@@ -77,6 +77,8 @@ class _MyHomePageState extends State<MyHomePage>
 
     for (var boid in boids) {
       boid.readyForNextTick();
+
+      boid.avoidWalls(ds);
 
       boid.avoidOtherBoids(boids, ds);
 
@@ -256,17 +258,21 @@ class Boid {
       if (_distanceToOtherPoint(boid.position) <= avoidanceDistance) {
         boidsToAvoid.add(boid.position);
 
-        // we want to turn in opposite direction of other boid
-        var turn = _relativeDirectionToOtherPoint(boid.position);
-
-        // we want maximum turning if other boid is straight ahead
-        turn = (2 * pi - (turn + pi)) - pi;
-
-        turnAmount += avoidanceWeight * turn;
+        turnAmount += _getTurnAmountToAvoidPoint(boid.position);
       }
     }
 
     newDirection += _normaliseDirection(turnAmount);
+  }
+
+  double _getTurnAmountToAvoidPoint(Point pointToAvoid) {
+    // we want to turn in opposite direction of other boid
+    var turn = _relativeDirectionToOtherPoint(pointToAvoid);
+
+    // we want maximum turning if other boid is straight ahead
+    turn = (2 * pi - (turn + pi)) - pi;
+
+    return avoidanceWeight * turn;
   }
 
   void turnTowardCentreOfMass(List<Boid> boids, double ds) {}
@@ -274,9 +280,30 @@ class Boid {
   void turnTowardDirectionOfOtherBoids(List<Boid> boids, double ds) {}
 
   void avoidWalls(double ds) {
+    var turnAmount = 0.0;
     final nextPosition = nextPostion(ds);
 
-    if (nextPosition.x < avoidanceDistance) {}
+    // left
+    if (nextPosition.x < avoidanceDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(0, nextPosition.y));
+    }
+
+    // right
+    if (nextPosition.x > 1 - avoidanceDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(1, nextPosition.y));
+    }
+
+    // top
+    if (nextPosition.y < avoidanceDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(nextPosition.x, 0));
+    }
+
+    // bottom
+    if (nextPosition.y > 1 - avoidanceDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(nextPosition.x, 1));
+    }
+
+    newDirection += _normaliseDirection(turnAmount);
   }
 
   double _distanceToOtherPoint(Point point) => position.distanceTo(point);
