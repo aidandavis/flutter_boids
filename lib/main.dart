@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'dart:math';
 
+import 'package:flutter/scheduler.dart';
+
 void main() {
   runApp(MyApp());
 }
@@ -29,6 +31,263 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage>
     with SingleTickerProviderStateMixin {
+  BoidSimulation simulation;
+
+  @override
+  void initState() {
+    super.initState();
+
+    simulation = BoidSimulation(this);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+
+    return Scaffold(
+      body: Container(
+        color: Colors.grey[900],
+        child: Stack(
+          children: [
+            Center(
+              child: Container(
+                height: screenSize.shortestSide,
+                width: screenSize.shortestSide,
+                color: Colors.grey[800],
+              ),
+            ),
+            Center(
+              child: GestureDetector(
+                onPanUpdate: (details) {
+                  simulation.coherencePosition = Offset(
+                    details.localPosition.dx / screenSize.shortestSide,
+                    details.localPosition.dy / screenSize.shortestSide,
+                  );
+                },
+                child: AnimatedBuilder(
+                  animation: simulation,
+                  builder: (context, child) {
+                    return CustomPaint(
+                      size: Size(
+                        screenSize.shortestSide,
+                        screenSize.shortestSide,
+                      ),
+                      painter: BoidPainter(
+                        simulation.boids,
+                        simulation.cohereToPoint,
+                        simulation.coherencePosition,
+                        simulation.separationDistance,
+                        simulation.awarenessDistance,
+                        simulation.awarenessArc,
+                        drawAvoidance: simulation.drawAvoidance,
+                        drawAwareness: simulation.drawAwareness,
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.topLeft,
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 10,
+                  children: [
+                    AnimatedBuilder(
+                        animation: simulation,
+                        builder: (context, child) {
+                          final fps = simulation.fpsList.isNotEmpty
+                              ? simulation.fpsList.reduce(
+                                      (value, element) => value + element) ~/
+                                  simulation.fpsList.length
+                              : 60;
+                          return Text(
+                            'fps: $fps (${simulation.boids.length}) boids',
+                            style: TextStyle(
+                              color: Colors.white70,
+                            ),
+                          );
+                        }),
+                  ],
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                alignment: WrapAlignment.center,
+                spacing: 10,
+                children: [
+                  ElevatedButton(
+                    child: Text('Add boids'),
+                    onPressed: () => simulation.addBoids(),
+                  ),
+                  ElevatedButton(
+                    child: Text('Remove boids'),
+                    onPressed: () => simulation.removeBoids(),
+                  ),
+                  ElevatedButton(
+                    child: Text('Toggle Separation'),
+                    onPressed: () {
+                      simulation.drawAvoidance = !simulation.drawAvoidance;
+                    },
+                  ),
+                  ElevatedButton(
+                    child: Text('Toggle Awareness'),
+                    onPressed: () {
+                      simulation.drawAwareness = !simulation.drawAwareness;
+                    },
+                  ),
+                  ElevatedButton(
+                    child: Text('Toggle to Point'),
+                    onPressed: () {
+                      simulation.cohereToPoint = !simulation.cohereToPoint;
+                    },
+                  ),
+                  // ElevatedButton(
+                  //   child: Text('Reset Settings'),
+                  //   onPressed: () => _resetSettings(),
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Awareness Arc',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: awarenessArc,
+                  //       min: pi / 2,
+                  //       max: 2 * pi,
+                  //       onChanged: (value) {
+                  //           awarenessArc = value;
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Awareness Distance',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: awarenessDistance,
+                  //       label: 'hello',
+                  //       min: 0.01,
+                  //       max: 1 / 3,
+                  //       onChanged: (value) {
+                  //           awarenessDistance = value;
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Cohesion Weight',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: coherenceWeight,
+                  //       min: 0,
+                  //       max: 0.2,
+                  //       onChanged: (value) {
+                  //           coherenceWeight = value;
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Alignment Weight',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: alignmentWeight,
+                  //       min: 0,
+                  //       max: 0.2,
+                  //       onChanged: (value) {
+                  //           alignmentWeight = value;
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Separation Distance',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: separationDistance,
+                  //       min: 0,
+                  //       max: 0.05,
+                  //       onChanged: (value) {
+                  //           separationDistance = value;
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                  // Row(
+                  //   mainAxisSize: MainAxisSize.min,
+                  //   crossAxisAlignment: CrossAxisAlignment.center,
+                  //   children: [
+                  //     Text(
+                  //       'Separation Weight',
+                  //       style: TextStyle(
+                  //         color: Colors.white70,
+                  //       ),
+                  //     ),
+                  //     Slider(
+                  //       value: separationWeight,
+                  //       min: 0,
+                  //       max: 0.5,
+                  //       onChanged: (value) {
+                  //           separationWeight = value;
+                  //       },
+                  //     ),
+                  //   ],
+                  // ),
+                ]
+                    .map((Widget widget) => Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: widget,
+                        ))
+                    .toList(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class BoidSimulation extends ChangeNotifier {
   static const boidsPerOperation = 15;
   static const boidLimit = 500;
   static const fpsAverageCount = 20;
@@ -61,17 +320,17 @@ class _MyHomePageState extends State<MyHomePage>
   bool drawAvoidance = false;
   bool drawAwareness = false;
 
-  @override
-  void initState() {
-    super.initState();
+  final TickerProvider vsync;
+  Ticker _ticker;
 
-    _addBoids(75);
-
-    createTicker(_tick)..start();
+  BoidSimulation(this.vsync) {
+    addBoids(75);
+    _ticker = vsync.createTicker(_tick)..start();
   }
 
   @override
   void dispose() {
+    _ticker.dispose();
     super.dispose();
   }
 
@@ -82,10 +341,10 @@ class _MyHomePageState extends State<MyHomePage>
 
     var ds = dt / 1000000;
 
-    _calculateFps();
+    calculateFps();
 
     while (boids.length > boidLimit) {
-      _removeBoids();
+      removeBoids();
     }
 
     for (Boid boid in boids) {
@@ -105,10 +364,10 @@ class _MyHomePageState extends State<MyHomePage>
       );
     }
 
-    setState(() {});
+    notifyListeners();
   }
 
-  void _calculateFps() {
+  void calculateFps() {
     final safeDt = dt == 0 ? 1 : dt;
 
     fpsList.add(1000000 ~/ safeDt);
@@ -118,295 +377,31 @@ class _MyHomePageState extends State<MyHomePage>
     }
   }
 
-  void _addBoids([int numToAdd = boidsPerOperation]) {
-    this.setState(() {
-      for (var i = 0; i < numToAdd; i++) {
-        boids.add(Boid.createRandom());
-      }
-    });
+  void addBoids([int numToAdd = boidsPerOperation]) {
+    for (var i = 0; i < numToAdd; i++) {
+      boids.add(Boid.createRandom());
+    }
   }
 
-  void _removeBoids([int numToRemove = boidsPerOperation]) {
+  void removeBoids([int numToRemove = boidsPerOperation]) {
     if (numToRemove > boids.length) {
       numToRemove = boids.length;
     }
 
-    this.setState(() {
-      for (var i = 0; i < numToRemove; i++) {
-        boids.removeAt(Random().nextInt(boids.length));
-      }
-    });
+    for (var i = 0; i < numToRemove; i++) {
+      boids.removeAt(Random().nextInt(boids.length));
+    }
   }
 
-  void _resetSettings() {
-    setState(() {
-      separationDistance = 0.02;
-      separationWeight = 0.375;
+  void resetSettings() {
+    separationDistance = 0.02;
+    separationWeight = 0.375;
 
-      awarenessArc = pi;
-      awarenessDistance = 0.1;
+    awarenessArc = pi;
+    awarenessDistance = 0.1;
 
-      coherenceWeight = 0.05;
-      alignmentWeight = 0.05;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-
-    final fps = fpsList.isNotEmpty
-        ? fpsList.reduce((value, element) => value + element) ~/ fpsList.length
-        : 60;
-
-    return Scaffold(
-      body: Container(
-        color: Colors.grey[900],
-        child: Stack(
-          children: [
-            Center(
-              child: Container(
-                height: screenSize.shortestSide,
-                width: screenSize.shortestSide,
-                color: Colors.grey[800],
-              ),
-            ),
-            Center(
-              child: GestureDetector(
-                onPanUpdate: (details) {
-                  setState(() {
-                    coherencePosition = Offset(
-                      details.localPosition.dx / screenSize.shortestSide,
-                      details.localPosition.dy / screenSize.shortestSide,
-                    );
-                  });
-                },
-                child: CustomPaint(
-                  size: Size(
-                    screenSize.shortestSide,
-                    screenSize.shortestSide,
-                  ),
-                  painter: BoidPainter(
-                    boids,
-                    cohereToPoint,
-                    coherencePosition,
-                    separationDistance,
-                    awarenessDistance,
-                    awarenessArc,
-                    drawAvoidance: drawAvoidance,
-                    drawAwareness: drawAwareness,
-                  ),
-                ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.topLeft,
-              child: Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 10,
-                  children: [
-                    Text(
-                      'fps: $fps (${boids.length}) boids',
-                      style: TextStyle(
-                        color: Colors.white70,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                alignment: WrapAlignment.center,
-                spacing: 10,
-                children: [
-                  ElevatedButton(
-                    child: Text('Add boids'),
-                    onPressed: () => _addBoids(),
-                  ),
-                  ElevatedButton(
-                    child: Text('Remove boids'),
-                    onPressed: () => _removeBoids(),
-                  ),
-                  ElevatedButton(
-                    child:
-                        Text('${drawAvoidance ? 'Hide' : 'Show'} Separation'),
-                    onPressed: () {
-                      setState(() {
-                        drawAvoidance = !drawAvoidance;
-                      });
-                    },
-                  ),
-                  ElevatedButton(
-                    child: Text('${drawAwareness ? 'Hide' : 'Show'} Awareness'),
-                    onPressed: () {
-                      setState(() {
-                        drawAwareness = !drawAwareness;
-                      });
-                    },
-                  ),
-                  ElevatedButton(
-                    child: Text(
-                        '${cohereToPoint ? 'Stop' : 'Start'} Cohherence to Point'),
-                    onPressed: () {
-                      setState(() {
-                        cohereToPoint = !cohereToPoint;
-                      });
-                    },
-                  ),
-                  // ElevatedButton(
-                  //   child: Text('Reset Settings'),
-                  //   onPressed: () => _resetSettings(),
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Awareness Arc',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: awarenessArc,
-                  //       min: pi / 2,
-                  //       max: 2 * pi,
-                  //       onChanged: (value) {
-                  //         setState(() {
-                  //           awarenessArc = value;
-                  //         });
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Awareness Distance',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: awarenessDistance,
-                  //       label: 'hello',
-                  //       min: 0.01,
-                  //       max: 1 / 3,
-                  //       onChanged: (value) {
-                  //         setState(() {
-                  //           awarenessDistance = value;
-                  //         });
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Cohesion Weight',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: coherenceWeight,
-                  //       min: 0,
-                  //       max: 0.2,
-                  //       onChanged: (value) {
-                  //         setState(() {
-                  //           coherenceWeight = value;
-                  //         });
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Alignment Weight',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: alignmentWeight,
-                  //       min: 0,
-                  //       max: 0.2,
-                  //       onChanged: (value) {
-                  //         setState(() {
-                  //           alignmentWeight = value;
-                  //         });
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Separation Distance',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: separationDistance,
-                  //       min: 0,
-                  //       max: 0.05,
-                  //       onChanged: (value) {
-                  //         setState(() {
-                  //           separationDistance = value;
-                  //         });
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Separation Weight',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: separationWeight,
-                  //       min: 0,
-                  //       max: 0.5,
-                  //       onChanged: (value) {
-                  //         setState(() {
-                  //           separationWeight = value;
-                  //         });
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                ]
-                    .map((Widget widget) => Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
-                          child: widget,
-                        ))
-                    .toList(),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    coherenceWeight = 0.05;
+    alignmentWeight = 0.05;
   }
 }
 
@@ -456,8 +451,6 @@ class Boid {
       newDirection +=
           _relativeDirectionToOtherPoint(coherencePoint) * coherenceWeight * 2;
     }
-
-    // avoidWalls();
 
     var separationTurnAmount = 0.0;
     var coherenceCumulativePoint;
@@ -513,6 +506,8 @@ class Boid {
 
       newDirection += relativeDirection * alignmentWeight;
     }
+
+    // newDirection += avoidWalls(separationDistance);
 
     applyNextPosition(speed, maxTurnSpeed, ds);
   }
@@ -591,31 +586,31 @@ class Boid {
     }
   }
 
-  // void avoidWalls() {
-  //   var turnAmount = 0.0;
+  double avoidWalls(double separationDistance) {
+    var turnAmount = 0.0;
 
-  //   // left
-  //   if (_x < separationDistance) {
-  //     turnAmount += _getTurnAmountToAvoidPoint(Point(0, _y));
-  //   }
+    // left
+    if (_x < separationDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(0, _y));
+    }
 
-  //   // right
-  //   if (_x > 1 - separationDistance) {
-  //     turnAmount += _getTurnAmountToAvoidPoint(Point(1, _y));
-  //   }
+    // right
+    if (_x > 1 - separationDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(1, _y));
+    }
 
-  //   // top
-  //   if (_y < separationDistance) {
-  //     turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 0));
-  //   }
+    // top
+    if (_y < separationDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 0));
+    }
 
-  //   // bottom
-  //   if (_y > 1 - separationDistance) {
-  //     turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 1));
-  //   }
+    // bottom
+    if (_y > 1 - separationDistance) {
+      turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 1));
+    }
 
-  //   newDirection += _normaliseDirection(turnAmount);
-  // }
+    return _normaliseDirection(turnAmount);
+  }
 
   double _distanceToOtherPoint(Point<double> point) =>
       position.distanceTo(point);
@@ -712,8 +707,8 @@ class BoidPainter extends CustomPainter {
     // avoidance
     final avoidanceRect = Rect.fromCenter(
       center: boidOffset,
-      width: separationDistance * size.width * 2,
-      height: separationDistance * size.height * 2,
+      width: separationDistance * size.width,
+      height: separationDistance * size.height,
     );
 
     canvas.drawOval(
