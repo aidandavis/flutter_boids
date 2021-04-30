@@ -187,7 +187,7 @@ class BoidSimulation extends ChangeNotifier {
   Ticker _ticker;
 
   BoidSimulation(this.vsync) {
-    addBoids(180);
+    addBoids(200);
     _ticker = vsync.createTicker(_tick)..start();
   }
 
@@ -558,7 +558,7 @@ class BoidPainter extends CustomPainter {
             Offset(line.p2.x * size.width, line.p2.y * size.height),
             Paint()
               ..color = Colors.pink
-              ..strokeWidth = 4);
+              ..strokeWidth = 2);
       }
     }
 
