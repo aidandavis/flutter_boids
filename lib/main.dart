@@ -1,8 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'dart:math';
-
 import 'package:flutter/scheduler.dart';
+import 'package:flutter_boids/clock.dart';
 
 void main() {
   runApp(MyApp());
@@ -57,34 +57,21 @@ class _MyHomePageState extends State<MyHomePage>
               ),
             ),
             Center(
-              child: GestureDetector(
-                onPanUpdate: (details) {
-                  simulation.coherencePosition = Offset(
-                    details.localPosition.dx / screenSize.shortestSide,
-                    details.localPosition.dy / screenSize.shortestSide,
+              child: AnimatedBuilder(
+                animation: simulation,
+                builder: (context, child) {
+                  return CustomPaint(
+                    size: Size(
+                      screenSize.shortestSide,
+                      screenSize.shortestSide,
+                    ),
+                    painter: BoidPainter(
+                      simulation,
+                      drawAvoidance: simulation.drawAvoidance,
+                      drawAwareness: simulation.drawAwareness,
+                    ),
                   );
                 },
-                child: AnimatedBuilder(
-                  animation: simulation,
-                  builder: (context, child) {
-                    return CustomPaint(
-                      size: Size(
-                        screenSize.shortestSide,
-                        screenSize.shortestSide,
-                      ),
-                      painter: BoidPainter(
-                        simulation.boids,
-                        simulation.cohereToPoint,
-                        simulation.coherencePosition,
-                        simulation.separationDistance,
-                        simulation.awarenessDistance,
-                        simulation.awarenessArc,
-                        drawAvoidance: simulation.drawAvoidance,
-                        drawAwareness: simulation.drawAwareness,
-                      ),
-                    );
-                  },
-                ),
               ),
             ),
             Align(
@@ -121,13 +108,19 @@ class _MyHomePageState extends State<MyHomePage>
                 alignment: WrapAlignment.center,
                 spacing: 10,
                 children: [
+                  // ElevatedButton(
+                  //   child: Text('Add boids'),
+                  //   onPressed: () => simulation.addBoids(),
+                  // ),
+                  // ElevatedButton(
+                  //   child: Text('Remove boids'),
+                  //   onPressed: () => simulation.removeBoids(),
+                  // ),
                   ElevatedButton(
-                    child: Text('Add boids'),
-                    onPressed: () => simulation.addBoids(),
-                  ),
-                  ElevatedButton(
-                    child: Text('Remove boids'),
-                    onPressed: () => simulation.removeBoids(),
+                    child: Text('Toggle Clock'),
+                    onPressed: () {
+                      simulation.drawClock = !simulation.drawClock;
+                    },
                   ),
                   ElevatedButton(
                     child: Text('Toggle Separation'),
@@ -141,137 +134,6 @@ class _MyHomePageState extends State<MyHomePage>
                       simulation.drawAwareness = !simulation.drawAwareness;
                     },
                   ),
-                  ElevatedButton(
-                    child: Text('Toggle to Point'),
-                    onPressed: () {
-                      simulation.cohereToPoint = !simulation.cohereToPoint;
-                    },
-                  ),
-                  // ElevatedButton(
-                  //   child: Text('Reset Settings'),
-                  //   onPressed: () => _resetSettings(),
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Awareness Arc',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: awarenessArc,
-                  //       min: pi / 2,
-                  //       max: 2 * pi,
-                  //       onChanged: (value) {
-                  //           awarenessArc = value;
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Awareness Distance',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: awarenessDistance,
-                  //       label: 'hello',
-                  //       min: 0.01,
-                  //       max: 1 / 3,
-                  //       onChanged: (value) {
-                  //           awarenessDistance = value;
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Cohesion Weight',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: coherenceWeight,
-                  //       min: 0,
-                  //       max: 0.2,
-                  //       onChanged: (value) {
-                  //           coherenceWeight = value;
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Alignment Weight',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: alignmentWeight,
-                  //       min: 0,
-                  //       max: 0.2,
-                  //       onChanged: (value) {
-                  //           alignmentWeight = value;
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Separation Distance',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: separationDistance,
-                  //       min: 0,
-                  //       max: 0.05,
-                  //       onChanged: (value) {
-                  //           separationDistance = value;
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
-                  // Row(
-                  //   mainAxisSize: MainAxisSize.min,
-                  //   crossAxisAlignment: CrossAxisAlignment.center,
-                  //   children: [
-                  //     Text(
-                  //       'Separation Weight',
-                  //       style: TextStyle(
-                  //         color: Colors.white70,
-                  //       ),
-                  //     ),
-                  //     Slider(
-                  //       value: separationWeight,
-                  //       min: 0,
-                  //       max: 0.5,
-                  //       onChanged: (value) {
-                  //           separationWeight = value;
-                  //       },
-                  //     ),
-                  //   ],
-                  // ),
                 ]
                     .map((Widget widget) => Padding(
                           padding: EdgeInsets.symmetric(vertical: 20),
@@ -288,7 +150,7 @@ class _MyHomePageState extends State<MyHomePage>
 }
 
 class BoidSimulation extends ChangeNotifier {
-  static const boidsPerOperation = 15;
+  static const boidsPerAddOrRemove = 15;
   static const boidLimit = 500;
   static const fpsAverageCount = 20;
 
@@ -301,30 +163,31 @@ class BoidSimulation extends ChangeNotifier {
 
   List<int> fpsList = [];
 
-  double speed = 0.15;
-  double maxTurnSpeed = 0.05;
+  double speed = 0.125;
+  double maxTurnSpeed = 0.2;
 
-  double separationDistance = 0.02;
-  double separationWeight = 0.375;
+  double separationDistance = 0.015;
+  double separationWeight = 0.1;
 
   double awarenessArc = pi;
-  double awarenessDistance = 0.1;
+  double awarenessDistance = 0.075;
 
-  double coherenceWeight = 0.05;
-  double alignmentWeight = 0.05;
+  double coherenceWeight = 0.02;
+  double alignmentWeight = 0.02;
 
-  Offset coherencePosition = Offset(0.5, 0.5);
-
-  bool cohereToPoint = false;
+  double cohereToSegmentWeight = 0.2;
 
   bool drawAvoidance = false;
   bool drawAwareness = false;
+  bool drawClock = false;
+
+  List<Line> clockSegments = [];
 
   final TickerProvider vsync;
   Ticker _ticker;
 
   BoidSimulation(this.vsync) {
-    addBoids(75);
+    addBoids(180);
     _ticker = vsync.createTicker(_tick)..start();
   }
 
@@ -347,8 +210,28 @@ class BoidSimulation extends ChangeNotifier {
       removeBoids();
     }
 
-    for (Boid boid in boids) {
-      boid.iterate(
+    final time = DateTime.now();
+    clockSegments = getClockSegments(time);
+
+    // first 30 seconds, stay on clock,
+    // then gradually drift off,
+    // final 15 seconds, no coherence to clock
+    var amountToCohereToClock = cohereToSegmentWeight;
+    if (time.second > 30 && time.second <= 45) {
+      amountToCohereToClock =
+          cohereToSegmentWeight * (15 - (time.second - 30)) / 15;
+    }
+    if (time.second > 45) {
+      amountToCohereToClock = 0;
+    }
+
+    // need to divide boids evenly amoung segments
+    final boidsPerSegment = boids.length / clockSegments.length;
+
+    for (var i = 0; i < boids.length; i++) {
+      final indexOfSegment = i ~/ boidsPerSegment;
+
+      boids[i].iterate(
         boids,
         ds,
         speed: speed,
@@ -359,8 +242,9 @@ class BoidSimulation extends ChangeNotifier {
         awarenessArc: awarenessArc,
         coherenceWeight: coherenceWeight,
         alignmentWeight: alignmentWeight,
-        cohereToPoint: cohereToPoint,
-        coherencePoint: Point(coherencePosition.dx, coherencePosition.dy),
+        amountToCohereToLine: amountToCohereToClock,
+        lineToCohereTo: clockSegments[indexOfSegment],
+        turnAroundDistance: 0.0125,
       );
     }
 
@@ -377,13 +261,13 @@ class BoidSimulation extends ChangeNotifier {
     }
   }
 
-  void addBoids([int numToAdd = boidsPerOperation]) {
+  void addBoids([int numToAdd = boidsPerAddOrRemove]) {
     for (var i = 0; i < numToAdd; i++) {
       boids.add(Boid.createRandom());
     }
   }
 
-  void removeBoids([int numToRemove = boidsPerOperation]) {
+  void removeBoids([int numToRemove = boidsPerAddOrRemove]) {
     if (numToRemove > boids.length) {
       numToRemove = boids.length;
     }
@@ -419,6 +303,8 @@ class Boid {
 
   List<Point> boidsAwareOf = [];
 
+  bool _headingToP1 = true;
+
   /// create a boid with random velocity starting in the center
   Boid.createRandom() {
     _x = Random().nextDouble();
@@ -433,23 +319,38 @@ class Boid {
   void iterate(
     List boids,
     double ds, {
-    @required speed,
-    @required maxTurnSpeed,
-    @required separationDistance,
-    @required separationWeight,
-    @required awarenessDistance,
-    @required awarenessArc,
-    @required coherenceWeight,
-    @required alignmentWeight,
-    @required bool cohereToPoint,
-    @required Point<double> coherencePoint,
+    @required double speed,
+    @required double maxTurnSpeed,
+    @required double separationDistance,
+    @required double separationWeight,
+    @required double awarenessDistance,
+    @required double awarenessArc,
+    @required double coherenceWeight,
+    @required double alignmentWeight,
+    @required Line lineToCohereTo,
+    @required double amountToCohereToLine,
+    @required double turnAroundDistance,
   }) {
     readyForNextTick();
 
-    // cohere to point
-    if (cohereToPoint) {
-      newDirection +=
-          _relativeDirectionToOtherPoint(coherencePoint) * coherenceWeight * 2;
+    // cohere to given line
+    if (lineToCohereTo != null) {
+      // want them to go along the line back and forward
+      if (_headingToP1) {
+        newDirection += _relativeDirectionToOtherPoint(lineToCohereTo.p1) *
+            amountToCohereToLine;
+      } else {
+        newDirection += _relativeDirectionToOtherPoint(lineToCohereTo.p2) *
+            amountToCohereToLine;
+      }
+
+// close to point, swap to other point
+      if ((_headingToP1 &&
+              _distanceToOtherPoint(lineToCohereTo.p1) < turnAroundDistance) ||
+          (!_headingToP1 &&
+              _distanceToOtherPoint(lineToCohereTo.p2) < turnAroundDistance)) {
+        _headingToP1 = !_headingToP1;
+      }
     }
 
     var separationTurnAmount = 0.0;
@@ -507,7 +408,7 @@ class Boid {
       newDirection += relativeDirection * alignmentWeight;
     }
 
-    // newDirection += avoidWalls(separationDistance);
+    newDirection += avoidWalls(separationDistance);
 
     applyNextPosition(speed, maxTurnSpeed, ds);
   }
@@ -638,30 +539,30 @@ class Boid {
 }
 
 class BoidPainter extends CustomPainter {
-  final List<Boid> boids;
-  final bool cohereToPoint;
-  final Offset coherencePosition;
+  final BoidSimulation simulation;
   final bool drawAvoidance;
   final bool drawAwareness;
-  final double separationDistance;
-  final double awarenessDistance;
-  final double awarenessArc;
 
-  BoidPainter(this.boids, this.cohereToPoint, this.coherencePosition,
-      this.separationDistance, this.awarenessDistance, this.awarenessArc,
-      {this.drawAvoidance = true, this.drawAwareness = true});
+  BoidPainter(
+    this.simulation, {
+    this.drawAvoidance = false,
+    this.drawAwareness = false,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (cohereToPoint) {
-      canvas.drawCircle(
-        coherencePosition.scale(size.width, size.height),
-        8,
-        Paint()..color = Colors.orange,
-      );
+    if (simulation.drawClock) {
+      for (final line in simulation.clockSegments) {
+        canvas.drawLine(
+            Offset(line.p1.x * size.width, line.p1.y * size.height),
+            Offset(line.p2.x * size.width, line.p2.y * size.height),
+            Paint()
+              ..color = Colors.pink
+              ..strokeWidth = 4);
+      }
     }
 
-    for (var boid in boids) {
+    for (final boid in simulation.boids) {
       final boidOffset =
           Offset(boid.position.x * size.width, boid.position.y * size.height);
 
@@ -707,8 +608,8 @@ class BoidPainter extends CustomPainter {
     // avoidance
     final avoidanceRect = Rect.fromCenter(
       center: boidOffset,
-      width: separationDistance * size.width,
-      height: separationDistance * size.height,
+      width: simulation.separationDistance * size.width,
+      height: simulation.separationDistance * size.height,
     );
 
     canvas.drawOval(
@@ -735,14 +636,14 @@ class BoidPainter extends CustomPainter {
     // avoidance
     final awarenessRect = Rect.fromCenter(
       center: boidOffset,
-      width: awarenessDistance * size.width * 2,
-      height: awarenessDistance * size.height * 2,
+      width: simulation.awarenessDistance * size.width * 2,
+      height: simulation.awarenessDistance * size.height * 2,
     );
 
     canvas.drawArc(
       awarenessRect,
-      boid._direction - awarenessArc / 2,
-      awarenessArc,
+      boid._direction - simulation.awarenessArc / 2,
+      simulation.awarenessArc,
       true,
       Paint()
         ..color = Colors.blue
