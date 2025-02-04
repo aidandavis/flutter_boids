@@ -1,14 +1,14 @@
-import 'package:flutter/material.dart';
 import 'dart:math';
-
+import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
 void main() {
-  runApp(MyApp());
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
-  // This widget is the root of your application.
+  const MyApp({Key? key}) : super(key: key);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -16,32 +16,38 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      home: MyHomePage(),
+      home: const MyHomePage(),
     );
   }
 }
 
 class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key}) : super(key: key);
+  const MyHomePage({Key? key}) : super(key: key);
 
   @override
-  _MyHomePageState createState() => _MyHomePageState();
+  State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage>
     with SingleTickerProviderStateMixin {
-  BoidSimulation simulation;
+  late BoidSimulation simulation;
 
   @override
   void initState() {
     super.initState();
-
     simulation = BoidSimulation(this);
+  }
+
+  @override
+  void dispose() {
+    simulation.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
+    final canvasSize = screenSize.shortestSide;
 
     return Scaffold(
       body: Container(
@@ -50,8 +56,8 @@ class _MyHomePageState extends State<MyHomePage>
           children: [
             Center(
               child: Container(
-                height: screenSize.shortestSide,
-                width: screenSize.shortestSide,
+                height: canvasSize,
+                width: canvasSize,
                 color: Colors.grey[800],
               ),
             ),
@@ -59,25 +65,22 @@ class _MyHomePageState extends State<MyHomePage>
               child: GestureDetector(
                 onPanUpdate: (details) {
                   simulation.coherencePosition = Offset(
-                    details.localPosition.dx / screenSize.shortestSide,
-                    details.localPosition.dy / screenSize.shortestSide,
+                    details.localPosition.dx / canvasSize,
+                    details.localPosition.dy / canvasSize,
                   );
                 },
                 child: AnimatedBuilder(
                   animation: simulation,
                   builder: (context, child) {
                     return CustomPaint(
-                      size: Size(
-                        screenSize.shortestSide,
-                        screenSize.shortestSide,
-                      ),
+                      size: Size(canvasSize, canvasSize),
                       painter: BoidPainter(
-                        simulation.boids,
-                        simulation.cohereToPoint,
-                        simulation.coherencePosition,
-                        simulation.separationDistance,
-                        simulation.awarenessDistance,
-                        simulation.awarenessArc,
+                        boids: simulation.boids,
+                        cohereToPoint: simulation.cohereToPoint,
+                        coherencePosition: simulation.coherencePosition,
+                        separationDistance: simulation.separationDistance,
+                        awarenessDistance: simulation.awarenessDistance,
+                        awarenessArc: simulation.awarenessArc,
                         drawAvoidance: simulation.drawAvoidance,
                         drawAwareness: simulation.drawAwareness,
                       ),
@@ -95,20 +98,20 @@ class _MyHomePageState extends State<MyHomePage>
                   spacing: 10,
                   children: [
                     AnimatedBuilder(
-                        animation: simulation,
-                        builder: (context, child) {
-                          final fps = simulation.fpsList.isNotEmpty
-                              ? simulation.fpsList.reduce(
-                                      (value, element) => value + element) ~/
-                                  simulation.fpsList.length
-                              : 60;
-                          return Text(
-                            'fps: $fps (${simulation.boids.length}) boids',
-                            style: TextStyle(
-                              color: Colors.white70,
-                            ),
-                          );
-                        }),
+                      animation: simulation,
+                      builder: (context, child) {
+                        final fps = simulation.fpsList.isNotEmpty
+                            ? simulation.fpsList.reduce((a, b) => a + b) ~/
+                                simulation.fpsList.length
+                            : 60;
+                        return Text(
+                          'fps: $fps (${simulation.boids.length}) boids',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                          ),
+                        );
+                      },
+                    ),
                   ],
                 ),
               ),
@@ -121,34 +124,34 @@ class _MyHomePageState extends State<MyHomePage>
                 spacing: 10,
                 children: [
                   ElevatedButton(
-                    child: Text('Add boids'),
-                    onPressed: () => simulation.addBoids(),
+                    onPressed: simulation.addBoids,
+                    child: const Text('Add boids'),
                   ),
                   ElevatedButton(
-                    child: Text('Remove boids'),
-                    onPressed: () => simulation.removeBoids(),
+                    onPressed: simulation.removeBoids,
+                    child: const Text('Remove boids'),
                   ),
                   ElevatedButton(
-                    child: Text('Toggle Separation'),
                     onPressed: () {
                       simulation.drawAvoidance = !simulation.drawAvoidance;
                     },
+                    child: const Text('Toggle Separation'),
                   ),
                   ElevatedButton(
-                    child: Text('Toggle Awareness'),
                     onPressed: () {
                       simulation.drawAwareness = !simulation.drawAwareness;
                     },
+                    child: const Text('Toggle Awareness'),
                   ),
                   ElevatedButton(
-                    child: Text('Toggle to Point'),
                     onPressed: () {
                       simulation.cohereToPoint = !simulation.cohereToPoint;
                     },
+                    child: const Text('Toggle to Point'),
                   ),
                 ]
-                    .map((Widget widget) => Padding(
-                          padding: EdgeInsets.symmetric(vertical: 20),
+                    .map((widget) => Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 20),
                           child: widget,
                         ))
                     .toList(),
@@ -162,18 +165,15 @@ class _MyHomePageState extends State<MyHomePage>
 }
 
 class BoidSimulation extends ChangeNotifier {
-  static const boidsPerOperation = 15;
-  static const boidLimit = 500;
-  static const fpsAverageCount = 20;
+  static const int boidsPerOperation = 15;
+  static const int boidLimit = 500;
+  static const int fpsAverageCount = 20;
 
-  // list of boids
   final List<Boid> boids = [];
 
-  /// time of last frame in microseconds
   int lastFrameTime = 0;
   int dt = 0;
-
-  List<int> fpsList = [];
+  final List<int> fpsList = [];
 
   double speed = 0.15;
   double maxTurnSpeed = 0.05;
@@ -187,15 +187,14 @@ class BoidSimulation extends ChangeNotifier {
   double coherenceWeight = 0.05;
   double alignmentWeight = 0.05;
 
-  Offset coherencePosition = Offset(0.5, 0.5);
+  Offset coherencePosition = const Offset(0.5, 0.5);
 
   bool cohereToPoint = false;
-
   bool drawAvoidance = false;
   bool drawAwareness = false;
 
   final TickerProvider vsync;
-  Ticker _ticker;
+  late final Ticker _ticker;
 
   BoidSimulation(this.vsync) {
     addBoids(75);
@@ -208,12 +207,10 @@ class BoidSimulation extends ChangeNotifier {
     super.dispose();
   }
 
-  _tick(Duration totalElapsedDuration) {
-    // microseconds are smoother
-    dt = totalElapsedDuration.inMicroseconds - lastFrameTime;
-    lastFrameTime = totalElapsedDuration.inMicroseconds;
-
-    var ds = dt / 1000000;
+  void _tick(Duration elapsed) {
+    dt = elapsed.inMicroseconds - lastFrameTime;
+    lastFrameTime = elapsed.inMicroseconds;
+    final ds = dt / 1000000;
 
     calculateFps();
 
@@ -221,7 +218,7 @@ class BoidSimulation extends ChangeNotifier {
       removeBoids();
     }
 
-    for (Boid boid in boids) {
+    for (var boid in boids) {
       boid.iterate(
         boids,
         ds,
@@ -243,9 +240,7 @@ class BoidSimulation extends ChangeNotifier {
 
   void calculateFps() {
     final safeDt = dt == 0 ? 1 : dt;
-
     fpsList.add(1000000 ~/ safeDt);
-
     if (fpsList.length > fpsAverageCount) {
       fpsList.removeAt(0);
     }
@@ -258,130 +253,106 @@ class BoidSimulation extends ChangeNotifier {
   }
 
   void removeBoids([int numToRemove = boidsPerOperation]) {
-    if (numToRemove > boids.length) {
-      numToRemove = boids.length;
-    }
-
+    numToRemove = numToRemove > boids.length ? boids.length : numToRemove;
     for (var i = 0; i < numToRemove; i++) {
-      boids.removeAt(Random().nextInt(boids.length));
+      boids.removeAt(Boid.random.nextInt(boids.length));
     }
   }
 
   void resetSettings() {
     separationDistance = 0.02;
     separationWeight = 0.375;
-
     awarenessArc = pi;
     awarenessDistance = 0.1;
-
     coherenceWeight = 0.05;
     alignmentWeight = 0.05;
   }
 }
 
-/// the boid
-/// position (x, y) will be 0 to 1, so will scale to viewport
 class Boid {
-  //posistion
   double _x;
   double _y;
-  double _direction; // radians
+  double _direction; // in radians
 
-  double newDirection = 0.0; // for the next tick
+  double newDirection = 0.0;
 
-  List<Point> boidsToAvoid = [];
+  final List<Point<double>> boidsToAvoid = [];
+  final List<Point<double>> boidsAwareOf = [];
 
-  List<Point> boidsAwareOf = [];
+  static final Random random = Random();
 
-  /// create a boid with random velocity starting in the center
-  Boid.createRandom() {
-    _x = Random().nextDouble();
-    _y = Random().nextDouble();
+  Boid.createRandom()
+      : _x = random.nextDouble(),
+        _y = random.nextDouble(),
+        _direction = random.nextDouble() * 2 * pi - pi;
 
-    _direction = -2 * pi * (Random().nextDouble() * 2 * pi);
-  }
+  Point<double> get position => Point(_x, _y);
+  double get direction => _direction;
 
-  Point<double> get position => Point<double>(_x, _y);
-
-  /// process the next step
   void iterate(
-    List boids,
+    List<Boid> boids,
     double ds, {
-    @required speed,
-    @required maxTurnSpeed,
-    @required separationDistance,
-    @required separationWeight,
-    @required awarenessDistance,
-    @required awarenessArc,
-    @required coherenceWeight,
-    @required alignmentWeight,
-    @required bool cohereToPoint,
-    @required Point<double> coherencePoint,
+    required double speed,
+    required double maxTurnSpeed,
+    required double separationDistance,
+    required double separationWeight,
+    required double awarenessDistance,
+    required double awarenessArc,
+    required double coherenceWeight,
+    required double alignmentWeight,
+    required bool cohereToPoint,
+    required Point<double> coherencePoint,
   }) {
     readyForNextTick();
 
-    // cohere to point
+    // Cohere to a fixed point if toggled.
     if (cohereToPoint) {
       newDirection +=
           _relativeDirectionToOtherPoint(coherencePoint) * coherenceWeight * 2;
     }
 
-    var separationTurnAmount = 0.0;
-    var coherenceCumulativePoint;
-    var alignmentCumulativeDirection = 0.0;
+    double separationTurnAmount = 0.0;
+    double cumulativeX = 0.0;
+    double cumulativeY = 0.0;
+    double alignmentCumulativeDirection = 0.0;
+    int numBoidsAwareOf = 0;
 
-    var numBoidsAwareOf = 0;
-
-    for (Boid boid in boids) {
-      // this will be a part of the list
-      if (boid == this) {
-        continue;
-      }
+    for (var boid in boids) {
+      if (boid == this) continue;
 
       final distanceToOtherBoid = _distanceToOtherPoint(boid.position);
 
-      // separation
+      // Separation: steer away from nearby boids.
       if (distanceToOtherBoid <= separationDistance) {
         boidsToAvoid.add(boid.position);
         separationTurnAmount += _getTurnAmountToAvoidPoint(boid.position);
       }
 
+      // Awareness: consider boids within a certain distance and within a field of view.
       if (_isAwareOfThisPoint(boid.position, awarenessDistance, awarenessArc)) {
         boidsAwareOf.add(boid.position);
-
-        // coherence
-        if (coherenceCumulativePoint == null) {
-          coherenceCumulativePoint = boid.position;
-        } else {
-          coherenceCumulativePoint += boid.position;
-        }
-
-        // alignment
-        alignmentCumulativeDirection += boid._direction;
+        cumulativeX += boid.position.x;
+        cumulativeY += boid.position.y;
+        alignmentCumulativeDirection += boid.direction;
         numBoidsAwareOf++;
       }
     }
 
-    // separation
+    // Apply separation influence.
     newDirection += separationTurnAmount * separationWeight;
 
     if (numBoidsAwareOf > 0) {
-      // coherence
-      final com = Point<double>(coherenceCumulativePoint.x / numBoidsAwareOf,
-          coherenceCumulativePoint.y / numBoidsAwareOf);
+      // Cohesion: steer towards the centre of mass.
+      final com =
+          Point(cumulativeX / numBoidsAwareOf, cumulativeY / numBoidsAwareOf);
       newDirection += _relativeDirectionToOtherPoint(com) * coherenceWeight;
 
-      // alignment
-      final averageDirectionOfOthers =
-          alignmentCumulativeDirection / numBoidsAwareOf;
-
+      // Alignment: adjust direction to match neighbours.
+      final averageDirection = alignmentCumulativeDirection / numBoidsAwareOf;
       final relativeDirection =
-          _normaliseDirection(averageDirectionOfOthers - _direction);
-
+          _normaliseDirection(averageDirection - _direction);
       newDirection += relativeDirection * alignmentWeight;
     }
-
-    // newDirection += avoidWalls(separationDistance);
 
     applyNextPosition(speed, maxTurnSpeed, ds);
   }
@@ -392,24 +363,15 @@ class Boid {
     boidsAwareOf.clear();
   }
 
-  /// dt is microseconds
-  Point<double> nextPostion(double speed, double ds) {
-    var nextX = _x + (cos(_direction) * speed * ds);
-    var nextY = _y + (sin(_direction) * speed * ds);
+  Point<double> nextPosition(double speed, double ds) {
+    var nextX = _x + cos(_direction) * speed * ds;
+    var nextY = _y + sin(_direction) * speed * ds;
 
-    // wrap
-    if (nextX > 1) {
-      nextX -= 1;
-    }
-    if (nextX < 0) {
-      nextX += 1;
-    }
-    if (nextY > 1) {
-      nextY -= 1;
-    }
-    if (nextY < 0) {
-      nextY += 1;
-    }
+    // Wrap around if going off the boundaries.
+    if (nextX > 1) nextX -= 1;
+    if (nextX < 0) nextX += 1;
+    if (nextY > 1) nextY -= 1;
+    if (nextY < 0) nextY += 1;
 
     return Point(nextX, nextY);
   }
@@ -418,43 +380,31 @@ class Boid {
     if (newDirection.abs() / ds > maxTurnSpeed) {
       newDirection = newDirection.sign * maxTurnSpeed;
     }
-
     _direction += newDirection;
     _direction = _normaliseDirection(_direction);
-
-    final nextPosition = nextPostion(speed, ds);
-
-    _x = nextPosition.x;
-    _y = nextPosition.y;
+    final nextPos = nextPosition(speed, ds);
+    _x = nextPos.x;
+    _y = nextPos.y;
   }
 
-  /// keep direction between pi and -pi
-  double _normaliseDirection(double direction) {
-    if (direction.abs() > pi) {
-      return direction - 2 * pi * ((direction + pi) / (2 * pi)).floor();
-    } else {
-      return direction;
-    }
+  double _normaliseDirection(double angle) {
+    angle = angle % (2 * pi);
+    if (angle > pi) angle -= 2 * pi;
+    return angle;
   }
 
   double _getTurnAmountToAvoidPoint(Point<double> pointToAvoid) {
-    // we want to turn in opposite direction of other boid
     final turn = _relativeDirectionToOtherPoint(pointToAvoid);
-
-    // we want maximum turning if other boid is straight ahead
     return (pi - turn.abs()) * -turn.sign;
   }
 
   bool _isAwareOfThisPoint(
-    Point<double> point,
-    double awarenessDistance,
-    double awarenessArc,
-  ) {
+      Point<double> point, double awarenessDistance, double awarenessArc) {
     if (_distanceToOtherPoint(point) <= awarenessDistance) {
       final angleToOtherBoid = _directionToOtherPoint(point);
       final minAngle = _direction - (awarenessArc / 2);
       final maxAngle = _direction + (awarenessArc / 2);
-      return (angleToOtherBoid >= minAngle && angleToOtherBoid <= maxAngle);
+      return angleToOtherBoid >= minAngle && angleToOtherBoid <= maxAngle;
     } else {
       return false;
     }
@@ -462,68 +412,63 @@ class Boid {
 
   double avoidWalls(double separationDistance) {
     var turnAmount = 0.0;
-
-    // left
     if (_x < separationDistance) {
       turnAmount += _getTurnAmountToAvoidPoint(Point(0, _y));
     }
-
-    // right
     if (_x > 1 - separationDistance) {
       turnAmount += _getTurnAmountToAvoidPoint(Point(1, _y));
     }
-
-    // top
     if (_y < separationDistance) {
       turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 0));
     }
-
-    // bottom
     if (_y > 1 - separationDistance) {
       turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 1));
     }
-
     return _normaliseDirection(turnAmount);
   }
 
   double _distanceToOtherPoint(Point<double> point) =>
       position.distanceTo(point);
 
-  /// not relative to current direction
   double _directionToOtherPoint(Point<double> point) =>
       atan2(point.y - _y, point.x - _x);
 
-  /// -pi to pi
   double _relativeDirectionToOtherPoint(Point<double> point) {
     return _normaliseDirection(_directionToOtherPoint(point) - _direction);
   }
 
-  bool operator ==(dynamic other) {
+  @override
+  bool operator ==(Object other) {
     if (other is Boid) {
-      return other._x == this._x &&
-          other._y == this._y &&
-          other._direction == this._direction;
-    } else
-      return false;
+      return _x == other._x && _y == other._y && _direction == other._direction;
+    }
+    return false;
   }
 
   @override
-  int get hashCode => (_x * _y * _direction).toInt();
+  int get hashCode => _x.hashCode ^ _y.hashCode ^ _direction.hashCode;
 }
 
 class BoidPainter extends CustomPainter {
   final List<Boid> boids;
   final bool cohereToPoint;
   final Offset coherencePosition;
-  final bool drawAvoidance;
-  final bool drawAwareness;
   final double separationDistance;
   final double awarenessDistance;
   final double awarenessArc;
+  final bool drawAvoidance;
+  final bool drawAwareness;
 
-  BoidPainter(this.boids, this.cohereToPoint, this.coherencePosition,
-      this.separationDistance, this.awarenessDistance, this.awarenessArc,
-      {this.drawAvoidance = true, this.drawAwareness = true});
+  BoidPainter({
+    required this.boids,
+    required this.cohereToPoint,
+    required this.coherencePosition,
+    required this.separationDistance,
+    required this.awarenessDistance,
+    required this.awarenessArc,
+    this.drawAvoidance = true,
+    this.drawAwareness = true,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -536,10 +481,11 @@ class BoidPainter extends CustomPainter {
     }
 
     for (var boid in boids) {
-      final boidOffset =
-          Offset(boid.position.x * size.width, boid.position.y * size.height);
-
-      _drawBoid(canvas, size, boid, boidOffset);
+      final boidOffset = Offset(
+        boid.position.x * size.width,
+        boid.position.y * size.height,
+      );
+      _drawBoid(canvas, boid, boidOffset);
 
       if (drawAvoidance) {
         _drawAvoidance(canvas, size, boid, boidOffset);
@@ -551,34 +497,28 @@ class BoidPainter extends CustomPainter {
     }
   }
 
-  void _drawBoid(Canvas canvas, Size size, Boid boid, Offset boidOffset) {
-    // draw a little triangle
+  void _drawBoid(Canvas canvas, Boid boid, Offset boidOffset) {
     final boidPath = Path()
-      ..addPolygon(
-        [
-          Offset(-4, 4),
-          Offset(8, 0),
-          Offset(-4, -4),
-        ],
-        true,
-      );
+      ..moveTo(-4, 4)
+      ..lineTo(8, 0)
+      ..lineTo(-4, -4)
+      ..close();
 
-    // rotate to face direction and translate to match offset
-    final transformationMatrix = Matrix4.identity()
-      ..rotateZ(boid._direction)
-      ..setTranslationRaw(boidOffset.dx, boidOffset.dy, 0);
-
+    // Use canvas transforms rather than building a transformation matrix.
+    canvas.save();
+    canvas.translate(boidOffset.dx, boidOffset.dy);
+    canvas.rotate(boid.direction);
     canvas.drawPath(
-      boidPath.transform(transformationMatrix.storage),
+      boidPath,
       Paint()
         ..color = Colors.red
         ..strokeWidth = 2
         ..style = PaintingStyle.fill,
     );
+    canvas.restore();
   }
 
   void _drawAvoidance(Canvas canvas, Size size, Boid boid, Offset boidOffset) {
-    // avoidance
     final avoidanceRect = Rect.fromCenter(
       center: boidOffset,
       width: separationDistance * size.width,
@@ -593,8 +533,10 @@ class BoidPainter extends CustomPainter {
     );
 
     for (final otherBoid in boid.boidsToAvoid) {
-      final otherBoidOffset =
-          Offset(otherBoid.x * size.width, otherBoid.y * size.height);
+      final otherBoidOffset = Offset(
+        otherBoid.x * size.width,
+        otherBoid.y * size.height,
+      );
       canvas.drawLine(
         boidOffset,
         otherBoidOffset,
@@ -606,7 +548,6 @@ class BoidPainter extends CustomPainter {
   }
 
   void _drawAwareness(Canvas canvas, Size size, Boid boid, Offset boidOffset) {
-    // avoidance
     final awarenessRect = Rect.fromCenter(
       center: boidOffset,
       width: awarenessDistance * size.width * 2,
@@ -615,7 +556,7 @@ class BoidPainter extends CustomPainter {
 
     canvas.drawArc(
       awarenessRect,
-      boid._direction - awarenessArc / 2,
+      boid.direction - awarenessArc / 2,
       awarenessArc,
       true,
       Paint()
@@ -624,8 +565,10 @@ class BoidPainter extends CustomPainter {
     );
 
     for (final otherBoid in boid.boidsAwareOf) {
-      final otherBoidOffset =
-          Offset(otherBoid.x * size.width, otherBoid.y * size.height);
+      final otherBoidOffset = Offset(
+        otherBoid.x * size.width,
+        otherBoid.y * size.height,
+      );
       canvas.drawLine(
         boidOffset,
         otherBoidOffset,
@@ -635,7 +578,5 @@ class BoidPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
-  }
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
