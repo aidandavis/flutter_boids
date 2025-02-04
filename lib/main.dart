@@ -13,9 +13,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Boids',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
+      theme: ThemeData(primarySwatch: Colors.blue),
       home: const MyHomePage(),
     );
   }
@@ -31,11 +29,15 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage>
     with SingleTickerProviderStateMixin {
   late BoidSimulation simulation;
+  double _boidCountSliderValue = 75;
+  double _speedSliderValue = 0.15;
 
   @override
   void initState() {
     super.initState();
     simulation = BoidSimulation(this);
+    _boidCountSliderValue = simulation.boids.length.toDouble();
+    _speedSliderValue = simulation.speed;
   }
 
   @override
@@ -46,14 +48,17 @@ class _MyHomePageState extends State<MyHomePage>
 
   @override
   Widget build(BuildContext context) {
+    // Use MediaQuery to support mobile screen sizes.
     final screenSize = MediaQuery.of(context).size;
+    // For a square canvas, we use the shortest side.
     final canvasSize = screenSize.shortestSide;
 
     return Scaffold(
-      body: Container(
-        color: Colors.grey[900],
+      backgroundColor: Colors.grey[900],
+      body: SafeArea(
         child: Stack(
           children: [
+            // Background square for the simulation.
             Center(
               child: Container(
                 height: canvasSize,
@@ -61,6 +66,7 @@ class _MyHomePageState extends State<MyHomePage>
                 color: Colors.grey[800],
               ),
             ),
+            // Simulation canvas.
             Center(
               child: GestureDetector(
                 onPanUpdate: (details) {
@@ -89,72 +95,137 @@ class _MyHomePageState extends State<MyHomePage>
                 ),
               ),
             ),
+            // Top-left FPS and boid count indicator.
             Align(
               alignment: Alignment.topLeft,
               child: Padding(
                 padding: const EdgeInsets.all(8.0),
-                child: Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 10,
-                  children: [
-                    AnimatedBuilder(
-                      animation: simulation,
-                      builder: (context, child) {
-                        final fps = simulation.fpsList.isNotEmpty
-                            ? simulation.fpsList.reduce((a, b) => a + b) ~/
-                                simulation.fpsList.length
-                            : 60;
-                        return Text(
-                          'fps: $fps (${simulation.boids.length}) boids',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                          ),
-                        );
-                      },
-                    ),
-                  ],
+                child: AnimatedBuilder(
+                  animation: simulation,
+                  builder: (context, child) {
+                    final fps = simulation.fpsList.isNotEmpty
+                        ? simulation.fpsList.reduce((a, b) => a + b) ~/
+                            simulation.fpsList.length
+                        : 60;
+                    return Text(
+                      'FPS: $fps   Boids: ${simulation.boids.length}',
+                      style: const TextStyle(color: Colors.white70),
+                    );
+                  },
                 ),
               ),
             ),
+            // Bottom control panel.
             Align(
               alignment: Alignment.bottomCenter,
-              child: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                alignment: WrapAlignment.center,
-                spacing: 10,
-                children: [
-                  ElevatedButton(
-                    onPressed: simulation.addBoids,
-                    child: const Text('Add boids'),
-                  ),
-                  ElevatedButton(
-                    onPressed: simulation.removeBoids,
-                    child: const Text('Remove boids'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      simulation.drawAvoidance = !simulation.drawAvoidance;
-                    },
-                    child: const Text('Toggle Separation'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      simulation.drawAwareness = !simulation.drawAwareness;
-                    },
-                    child: const Text('Toggle Awareness'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      simulation.cohereToPoint = !simulation.cohereToPoint;
-                    },
-                    child: const Text('Toggle to Point'),
-                  ),
-                ]
-                    .map((widget) => Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 20),
-                          child: widget,
-                        ))
-                    .toList(),
+              child: Container(
+                margin: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Boid count slider.
+                    Row(
+                      children: [
+                        const Text(
+                          "Boid Count",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        Expanded(
+                          child: Slider(
+                            min: 0,
+                            max: BoidSimulation.boidLimit.toDouble(),
+                            value: _boidCountSliderValue,
+                            divisions: BoidSimulation.boidLimit ~/ 10,
+                            label: _boidCountSliderValue.round().toString(),
+                            onChanged: (value) {
+                              setState(() {
+                                _boidCountSliderValue = value;
+                              });
+                              simulation.setBoidCount(value.round());
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Speed slider.
+                    Row(
+                      children: [
+                        const Text(
+                          "Speed",
+                          style: TextStyle(color: Colors.white),
+                        ),
+                        Expanded(
+                          child: Slider(
+                            min: 0.05,
+                            max: 0.5,
+                            value: _speedSliderValue,
+                            divisions: 9,
+                            label: _speedSliderValue.toStringAsFixed(2),
+                            onChanged: (value) {
+                              setState(() {
+                                _speedSliderValue = value;
+                              });
+                              simulation.speed = value;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Toggle switches.
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        Column(
+                          children: [
+                            const Text("Separation",
+                                style: TextStyle(color: Colors.white)),
+                            Switch(
+                              value: simulation.drawAvoidance,
+                              onChanged: (value) {
+                                setState(() {
+                                  simulation.drawAvoidance = value;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        Column(
+                          children: [
+                            const Text("Awareness",
+                                style: TextStyle(color: Colors.white)),
+                            Switch(
+                              value: simulation.drawAwareness,
+                              onChanged: (value) {
+                                setState(() {
+                                  simulation.drawAwareness = value;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                        Column(
+                          children: [
+                            const Text("Cohere To Point",
+                                style: TextStyle(color: Colors.white)),
+                            Switch(
+                              value: simulation.cohereToPoint,
+                              onChanged: (value) {
+                                setState(() {
+                                  simulation.cohereToPoint = value;
+                                });
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
@@ -170,25 +241,20 @@ class BoidSimulation extends ChangeNotifier {
   static const int fpsAverageCount = 20;
 
   final List<Boid> boids = [];
-
   int lastFrameTime = 0;
   int dt = 0;
   final List<int> fpsList = [];
 
   double speed = 0.15;
   double maxTurnSpeed = 0.05;
-
   double separationDistance = 0.02;
   double separationWeight = 0.375;
-
   double awarenessArc = pi;
   double awarenessDistance = 0.1;
-
   double coherenceWeight = 0.05;
   double alignmentWeight = 0.05;
 
   Offset coherencePosition = const Offset(0.5, 0.5);
-
   bool cohereToPoint = false;
   bool drawAvoidance = false;
   bool drawAwareness = false;
@@ -207,6 +273,9 @@ class BoidSimulation extends ChangeNotifier {
     super.dispose();
   }
 
+  // Spatial partitioning grid resolution.
+  static const int gridResolution = 20;
+
   void _tick(Duration elapsed) {
     dt = elapsed.inMicroseconds - lastFrameTime;
     lastFrameTime = elapsed.inMicroseconds;
@@ -214,13 +283,39 @@ class BoidSimulation extends ChangeNotifier {
 
     calculateFps();
 
+    // Ensure boid count does not exceed limit.
     while (boids.length > boidLimit) {
       removeBoids();
     }
 
+    // Build spatial grid to reduce neighbor comparisons.
+    final grid = List.generate(gridResolution,
+        (_) => List.generate(gridResolution, (_) => <Boid>[], growable: false),
+        growable: false);
+
+    // Assign each boid to a cell. The simulation area is [0,1] in both axes.
     for (var boid in boids) {
+      int cellX = (boid.position.x * gridResolution).floor() % gridResolution;
+      int cellY = (boid.position.y * gridResolution).floor() % gridResolution;
+      grid[cellX][cellY].add(boid);
+    }
+
+    // For each boid, gather neighbors from its own and adjacent cells (with wrap-around).
+    for (var boid in boids) {
+      int cellX = (boid.position.x * gridResolution).floor() % gridResolution;
+      int cellY = (boid.position.y * gridResolution).floor() % gridResolution;
+      final neighbors = <Boid>[];
+
+      for (int dx = -1; dx <= 1; dx++) {
+        for (int dy = -1; dy <= 1; dy++) {
+          int neighborX = (cellX + dx + gridResolution) % gridResolution;
+          int neighborY = (cellY + dy + gridResolution) % gridResolution;
+          neighbors.addAll(grid[neighborX][neighborY]);
+        }
+      }
+
       boid.iterate(
-        boids,
+        neighbors,
         ds,
         speed: speed,
         maxTurnSpeed: maxTurnSpeed,
@@ -259,6 +354,16 @@ class BoidSimulation extends ChangeNotifier {
     }
   }
 
+  void setBoidCount(int targetCount) {
+    final currentCount = boids.length;
+    if (targetCount > currentCount) {
+      addBoids(targetCount - currentCount);
+    } else if (targetCount < currentCount) {
+      removeBoids(currentCount - targetCount);
+    }
+    notifyListeners();
+  }
+
   void resetSettings() {
     separationDistance = 0.02;
     separationWeight = 0.375;
@@ -273,24 +378,32 @@ class Boid {
   double _x;
   double _y;
   double _direction; // in radians
-
   double newDirection = 0.0;
-
   final List<Point<double>> boidsToAvoid = [];
   final List<Point<double>> boidsAwareOf = [];
+
+  // Each boid has its own random vivid colour.
+  final Color color;
 
   static final Random random = Random();
 
   Boid.createRandom()
       : _x = random.nextDouble(),
         _y = random.nextDouble(),
-        _direction = random.nextDouble() * 2 * pi - pi;
+        _direction = random.nextDouble() * 2 * pi - pi,
+        color = HSLColor.fromAHSL(
+          1.0,
+          random.nextDouble() * 360,
+          0.7,
+          0.5,
+        ).toColor();
 
   Point<double> get position => Point(_x, _y);
   double get direction => _direction;
 
+  // Note: The first parameter now is the list of neighbor boids determined via spatial grid.
   void iterate(
-    List<Boid> boids,
+    List<Boid> neighbors,
     double ds, {
     required double speed,
     required double maxTurnSpeed,
@@ -305,7 +418,6 @@ class Boid {
   }) {
     readyForNextTick();
 
-    // Cohere to a fixed point if toggled.
     if (cohereToPoint) {
       newDirection +=
           _relativeDirectionToOtherPoint(coherencePoint) * coherenceWeight * 2;
@@ -317,18 +429,16 @@ class Boid {
     double alignmentCumulativeDirection = 0.0;
     int numBoidsAwareOf = 0;
 
-    for (var boid in boids) {
+    // Iterate over the nearby boids only.
+    for (var boid in neighbors) {
       if (boid == this) continue;
 
-      final distanceToOtherBoid = _distanceToOtherPoint(boid.position);
-
-      // Separation: steer away from nearby boids.
-      if (distanceToOtherBoid <= separationDistance) {
+      final distanceToOther = _distanceToOtherPoint(boid.position);
+      if (distanceToOther <= separationDistance) {
         boidsToAvoid.add(boid.position);
         separationTurnAmount += _getTurnAmountToAvoidPoint(boid.position);
       }
 
-      // Awareness: consider boids within a certain distance and within a field of view.
       if (_isAwareOfThisPoint(boid.position, awarenessDistance, awarenessArc)) {
         boidsAwareOf.add(boid.position);
         cumulativeX += boid.position.x;
@@ -338,16 +448,12 @@ class Boid {
       }
     }
 
-    // Apply separation influence.
     newDirection += separationTurnAmount * separationWeight;
 
     if (numBoidsAwareOf > 0) {
-      // Cohesion: steer towards the centre of mass.
       final com =
           Point(cumulativeX / numBoidsAwareOf, cumulativeY / numBoidsAwareOf);
       newDirection += _relativeDirectionToOtherPoint(com) * coherenceWeight;
-
-      // Alignment: adjust direction to match neighbours.
       final averageDirection = alignmentCumulativeDirection / numBoidsAwareOf;
       final relativeDirection =
           _normaliseDirection(averageDirection - _direction);
@@ -367,7 +473,6 @@ class Boid {
     var nextX = _x + cos(_direction) * speed * ds;
     var nextY = _y + sin(_direction) * speed * ds;
 
-    // Wrap around if going off the boundaries.
     if (nextX > 1) nextX -= 1;
     if (nextX < 0) nextX += 1;
     if (nextY > 1) nextY -= 1;
@@ -401,30 +506,12 @@ class Boid {
   bool _isAwareOfThisPoint(
       Point<double> point, double awarenessDistance, double awarenessArc) {
     if (_distanceToOtherPoint(point) <= awarenessDistance) {
-      final angleToOtherBoid = _directionToOtherPoint(point);
+      final angleToOther = _directionToOtherPoint(point);
       final minAngle = _direction - (awarenessArc / 2);
       final maxAngle = _direction + (awarenessArc / 2);
-      return angleToOtherBoid >= minAngle && angleToOtherBoid <= maxAngle;
-    } else {
-      return false;
+      return angleToOther >= minAngle && angleToOther <= maxAngle;
     }
-  }
-
-  double avoidWalls(double separationDistance) {
-    var turnAmount = 0.0;
-    if (_x < separationDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(0, _y));
-    }
-    if (_x > 1 - separationDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(1, _y));
-    }
-    if (_y < separationDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 0));
-    }
-    if (_y > 1 - separationDistance) {
-      turnAmount += _getTurnAmountToAvoidPoint(Point(_x, 1));
-    }
-    return _normaliseDirection(turnAmount);
+    return false;
   }
 
   double _distanceToOtherPoint(Point<double> point) =>
@@ -486,11 +573,9 @@ class BoidPainter extends CustomPainter {
         boid.position.y * size.height,
       );
       _drawBoid(canvas, boid, boidOffset);
-
       if (drawAvoidance) {
         _drawAvoidance(canvas, size, boid, boidOffset);
       }
-
       if (drawAwareness) {
         _drawAwareness(canvas, size, boid, boidOffset);
       }
@@ -504,16 +589,14 @@ class BoidPainter extends CustomPainter {
       ..lineTo(-4, -4)
       ..close();
 
-    // Use canvas transforms rather than building a transformation matrix.
     canvas.save();
     canvas.translate(boidOffset.dx, boidOffset.dy);
     canvas.rotate(boid.direction);
+    // Draw drop shadow (if performance becomes an issue, consider toggling this off).
+    canvas.drawShadow(boidPath, Colors.black, 4.0, true);
     canvas.drawPath(
       boidPath,
-      Paint()
-        ..color = Colors.red
-        ..strokeWidth = 2
-        ..style = PaintingStyle.fill,
+      Paint()..color = boid.color,
     );
     canvas.restore();
   }
@@ -524,7 +607,6 @@ class BoidPainter extends CustomPainter {
       width: separationDistance * size.width,
       height: separationDistance * size.height,
     );
-
     canvas.drawOval(
       avoidanceRect,
       Paint()
@@ -532,14 +614,14 @@ class BoidPainter extends CustomPainter {
         ..style = PaintingStyle.stroke,
     );
 
-    for (final otherBoid in boid.boidsToAvoid) {
-      final otherBoidOffset = Offset(
-        otherBoid.x * size.width,
-        otherBoid.y * size.height,
+    for (final other in boid.boidsToAvoid) {
+      final otherOffset = Offset(
+        other.x * size.width,
+        other.y * size.height,
       );
       canvas.drawLine(
         boidOffset,
-        otherBoidOffset,
+        otherOffset,
         Paint()
           ..color = Colors.black
           ..strokeWidth = 1,
@@ -554,24 +636,38 @@ class BoidPainter extends CustomPainter {
       height: awarenessDistance * size.height * 2,
     );
 
+    // Use a gradient for the awareness arc:
+    // If the boid is "aware" of neighbours, use a warm gradient;
+    // otherwise use a cooler gradient.
+    final bool isActive = boid.boidsAwareOf.isNotEmpty;
+    final Paint awarenessPaint = Paint()
+      ..shader = SweepGradient(
+        startAngle: boid.direction - awarenessArc / 2,
+        endAngle: boid.direction + awarenessArc / 2,
+        colors: isActive
+            ? [Colors.yellow, Colors.orange]
+            : [Colors.blue, Colors.blueAccent],
+        stops: const [0.0, 1.0],
+      ).createShader(awarenessRect)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+
     canvas.drawArc(
       awarenessRect,
       boid.direction - awarenessArc / 2,
       awarenessArc,
       true,
-      Paint()
-        ..color = Colors.blue
-        ..style = PaintingStyle.stroke,
+      awarenessPaint,
     );
 
-    for (final otherBoid in boid.boidsAwareOf) {
-      final otherBoidOffset = Offset(
-        otherBoid.x * size.width,
-        otherBoid.y * size.height,
+    for (final other in boid.boidsAwareOf) {
+      final otherOffset = Offset(
+        other.x * size.width,
+        other.y * size.height,
       );
       canvas.drawLine(
         boidOffset,
-        otherBoidOffset,
+        otherOffset,
         Paint()..color = Colors.green,
       );
     }
