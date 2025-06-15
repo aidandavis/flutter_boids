@@ -495,6 +495,7 @@ class Boid {
   double _normaliseDirection(double angle) {
     angle = angle % (2 * pi);
     if (angle > pi) angle -= 2 * pi;
+    if (angle <= -pi) angle += 2 * pi;
     return angle;
   }
 
@@ -506,10 +507,8 @@ class Boid {
   bool _isAwareOfThisPoint(
       Point<double> point, double awarenessDistance, double awarenessArc) {
     if (_distanceToOtherPoint(point) <= awarenessDistance) {
-      final angleToOther = _directionToOtherPoint(point);
-      final minAngle = _direction - (awarenessArc / 2);
-      final maxAngle = _direction + (awarenessArc / 2);
-      return angleToOther >= minAngle && angleToOther <= maxAngle;
+      final relativeDir = _relativeDirectionToOtherPoint(point).abs();
+      return relativeDir <= awarenessArc / 2;
     }
     return false;
   }
