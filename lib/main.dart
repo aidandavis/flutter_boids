@@ -2,6 +2,13 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+double _toroidalDelta(double a, double b) {
+  var diff = a - b;
+  if (diff > 0.5) return diff - 1;
+  if (diff < -0.5) return diff + 1;
+  return diff;
+}
+
 void main() {
   runApp(const MyApp());
 }
@@ -517,8 +524,11 @@ class Boid {
   double _distanceToOtherPoint(Point<double> point) =>
       position.distanceTo(point);
 
-  double _directionToOtherPoint(Point<double> point) =>
-      atan2(point.y - _y, point.x - _x);
+  double _directionToOtherPoint(Point<double> point) {
+    final dy = _toroidalDelta(point.y, _y);
+    final dx = _toroidalDelta(point.x, _x);
+    return atan2(dy, dx);
+  }
 
   double _relativeDirectionToOtherPoint(Point<double> point) {
     return _normaliseDirection(_directionToOtherPoint(point) - _direction);
