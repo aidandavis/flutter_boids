@@ -16,7 +16,7 @@ Tips:
 ## Build (GitHub Pages)
 
 ```sh
-flutter build web --release
+flutter build web --release --base-href /flutter_boids/
 ```
 
 After building, copy the contents of `build/web/` into `docs/`.
