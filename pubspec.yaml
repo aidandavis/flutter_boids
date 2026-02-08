@@ -1,5 +1,5 @@
 name: flutter_boids
-description: A new Flutter project.
+description: An interactive boids flocking playground built with Flutter Web.
 
 version: 1.0.0+4
 
@@ -9,6 +9,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  cupertino_icons: ^1.0.8
 
 dev_dependencies:
   flutter_test:
