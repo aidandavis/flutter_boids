@@ -106,7 +106,10 @@ class _BoidsCanvasState extends State<_BoidsCanvas> {
       (local.dx / size).clamp(0.0, 1.0),
       (local.dy / size).clamp(0.0, 1.0),
     );
-    widget.engine.setAttractor(norm, repel: _shiftPressed());
+    widget.engine.setAttractor(
+      norm,
+      repel: _shiftPressed() || widget.engine.dragRepels,
+    );
   }
 
   @override
@@ -200,7 +203,7 @@ class _IntroPill extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Drag to attract. Hold Shift to repel. Toggle rules to see the magic.',
+                'Drag to attract. Toggle Repel (or hold Shift) to push away. Then play with the rules.',
                 style: TextStyle(
                   color: Colors.white.withAlpha(217),
                   height: 1.15,

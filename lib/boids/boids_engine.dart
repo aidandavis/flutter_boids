@@ -83,6 +83,7 @@ class BoidsEngine extends ChangeNotifier {
   // Pointer interaction (normalized [0,1] coords).
   Offset? _attractor;
   int _attractorSign = 1; // +1 attract, -1 repel
+  bool dragRepels = false;
 
   late final Ticker _ticker;
 
@@ -188,6 +189,11 @@ class BoidsEngine extends ChangeNotifier {
       // interaction marker still updates.
       notifyListeners();
     }
+  }
+
+  void setDragRepels(bool value) {
+    if (dragRepels == value) return;
+    dragRepels = value;
   }
 
   void markNeedsPaint() => notifyListeners();

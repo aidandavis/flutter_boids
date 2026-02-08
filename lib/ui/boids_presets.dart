@@ -33,7 +33,7 @@ class BoidsPreset {
   const BoidsPreset.murmuration()
       : this(
           name: 'Murmuration',
-          boids: 650,
+          boids: 200,
           speed: 0.22,
           perception: 0.115,
           separation: 0.032,
@@ -49,7 +49,7 @@ class BoidsPreset {
   const BoidsPreset.school()
       : this(
           name: 'School',
-          boids: 900,
+          boids: 320,
           speed: 0.19,
           perception: 0.105,
           separation: 0.026,
@@ -65,7 +65,7 @@ class BoidsPreset {
   const BoidsPreset.fireflies()
       : this(
           name: 'Fireflies',
-          boids: 520,
+          boids: 180,
           speed: 0.12,
           perception: 0.165,
           separation: 0.022,
@@ -81,7 +81,7 @@ class BoidsPreset {
   const BoidsPreset.chaos()
       : this(
           name: 'Chaos',
-          boids: 1400,
+          boids: 600,
           speed: 0.31,
           perception: 0.075,
           separation: 0.018,

@@ -29,8 +29,8 @@ class _BoidsPageState extends State<BoidsPage>
 
     _engine = BoidsEngine(
       vsync: this,
-      capacity: 2400,
-      initialBoids: 650,
+      capacity: 600,
+      initialBoids: 200,
       gridResolution: 20,
       statsHz: 4,
     );

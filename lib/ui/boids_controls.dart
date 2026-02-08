@@ -30,6 +30,7 @@ class _BoidsControlsState extends State<BoidsControls> {
   late double _wSep;
   late double _wAli;
   late double _wCoh;
+  late bool _dragRepels;
   late bool _sepOn;
   late bool _aliOn;
   late bool _cohOn;
@@ -55,6 +56,7 @@ class _BoidsControlsState extends State<BoidsControls> {
     _wSep = _e.separationWeight;
     _wAli = _e.alignmentWeight;
     _wCoh = _e.cohesionWeight;
+    _dragRepels = _e.dragRepels;
     _sepOn = _e.separationEnabled;
     _aliOn = _e.alignmentEnabled;
     _cohOn = _e.cohesionEnabled;
@@ -113,6 +115,15 @@ class _BoidsControlsState extends State<BoidsControls> {
           onReset: () => _applyPreset(const BoidsPreset.murmuration()),
         ),
         const SizedBox(height: 12),
+        _DragModeRow(
+          dense: dense,
+          repel: _dragRepels,
+          onChanged: (repel) {
+            setState(() => _dragRepels = repel);
+            _e.setDragRepels(repel);
+          },
+        ),
+        const SizedBox(height: 18),
         _SectionTitle(title: 'Presets', dense: dense),
         const SizedBox(height: 10),
         Wrap(
@@ -180,7 +191,7 @@ class _BoidsControlsState extends State<BoidsControls> {
           value: _boids.toDouble(),
           min: 50,
           max: _e.capacity.toDouble(),
-          divisions: ((_e.capacity - 50) / 50).round(),
+          divisions: ((_e.capacity - 50) / 10).round(),
           onChanged: (v) {
             final int next = v.round().clamp(50, _e.capacity);
             setState(() => _boids = next);
@@ -202,7 +213,7 @@ class _BoidsControlsState extends State<BoidsControls> {
         ),
         _LabeledSlider(
           dense: dense,
-          label: 'Vision',
+          label: 'Vision Radius',
           valueLabel: _perception.toStringAsFixed(3),
           value: _perception,
           min: 0.045,
@@ -219,7 +230,7 @@ class _BoidsControlsState extends State<BoidsControls> {
         ),
         _LabeledSlider(
           dense: dense,
-          label: 'Personal Space',
+          label: 'Separation Radius',
           valueLabel: _separation.toStringAsFixed(3),
           value: _separation,
           min: 0.010,
@@ -233,7 +244,7 @@ class _BoidsControlsState extends State<BoidsControls> {
         ),
         _LabeledSlider(
           dense: dense,
-          label: 'Agility',
+          label: 'Turn Rate',
           valueLabel: _turnRate.toStringAsFixed(1),
           value: _turnRate,
           min: 1.0,
@@ -244,55 +255,13 @@ class _BoidsControlsState extends State<BoidsControls> {
             _e.maxTurnRate = v;
           },
         ),
-        const SizedBox(height: 14),
-        _SectionTitle(title: 'Weights', dense: dense),
-        const SizedBox(height: 8),
-        _LabeledSlider(
-          dense: dense,
-          label: 'Separation Weight',
-          valueLabel: _wSep.toStringAsFixed(2),
-          value: _wSep,
-          min: 0.0,
-          max: 3.5,
-          divisions: 70,
-          onChanged: (v) {
-            setState(() => _wSep = v);
-            _e.separationWeight = v;
-          },
-        ),
-        _LabeledSlider(
-          dense: dense,
-          label: 'Alignment Weight',
-          valueLabel: _wAli.toStringAsFixed(2),
-          value: _wAli,
-          min: 0.0,
-          max: 3.5,
-          divisions: 70,
-          onChanged: (v) {
-            setState(() => _wAli = v);
-            _e.alignmentWeight = v;
-          },
-        ),
-        _LabeledSlider(
-          dense: dense,
-          label: 'Cohesion Weight',
-          valueLabel: _wCoh.toStringAsFixed(2),
-          value: _wCoh,
-          min: 0.0,
-          max: 3.5,
-          divisions: 70,
-          onChanged: (v) {
-            setState(() => _wCoh = v);
-            _e.cohesionWeight = v;
-          },
-        ),
         const SizedBox(height: 16),
         _SectionTitle(title: 'Visuals', dense: dense),
         const SizedBox(height: 10),
         _SwitchRow(
           dense: dense,
           title: 'Trails',
-          subtitle: 'A little motion blur.',
+          subtitle: 'Subtle streaks behind boids.',
           value: _trails,
           onChanged: (v) {
             setState(() => _trails = v);
@@ -320,6 +289,25 @@ class _BoidsControlsState extends State<BoidsControls> {
           },
         ),
         const SizedBox(height: 16),
+        _AdvancedWeightsTile(
+          dense: dense,
+          wSep: _wSep,
+          wAli: _wAli,
+          wCoh: _wCoh,
+          onSepChanged: (v) {
+            setState(() => _wSep = v);
+            _e.separationWeight = v;
+          },
+          onAliChanged: (v) {
+            setState(() => _wAli = v);
+            _e.alignmentWeight = v;
+          },
+          onCohChanged: (v) {
+            setState(() => _wCoh = v);
+            _e.cohesionWeight = v;
+          },
+        ),
+        const SizedBox(height: 16),
         _SectionTitle(title: 'How To Play', dense: dense),
         const SizedBox(height: 8),
         _HintRow(
@@ -329,7 +317,7 @@ class _BoidsControlsState extends State<BoidsControls> {
         ),
         _HintRow(
           icon: Icons.keyboard,
-          text: 'Hold Shift while dragging to repel.',
+          text: 'Use Repel on mobile. On desktop, Shift also repels.',
           dense: dense,
         ),
         _HintRow(
@@ -591,6 +579,139 @@ class _HintRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DragModeRow extends StatelessWidget {
+  const _DragModeRow({
+    required this.dense,
+    required this.repel,
+    required this.onChanged,
+  });
+
+  final bool dense;
+  final bool repel;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextTheme t = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Drag Mode',
+          style: t.labelLarge!.copyWith(
+            color: Colors.white.withAlpha(219),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 8),
+        SegmentedButton<bool>(
+          segments: const [
+            ButtonSegment<bool>(value: false, label: Text('Attract')),
+            ButtonSegment<bool>(value: true, label: Text('Repel')),
+          ],
+          selected: {repel},
+          onSelectionChanged: (s) => onChanged(s.first),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Works on touch devices. Desktop: hold Shift to repel temporarily.',
+          style: t.bodySmall!.copyWith(color: Colors.white.withAlpha(148)),
+        ),
+      ],
+    );
+  }
+}
+
+class _AdvancedWeightsTile extends StatelessWidget {
+  const _AdvancedWeightsTile({
+    required this.dense,
+    required this.wSep,
+    required this.wAli,
+    required this.wCoh,
+    required this.onSepChanged,
+    required this.onAliChanged,
+    required this.onCohChanged,
+  });
+
+  final bool dense;
+  final double wSep;
+  final double wAli;
+  final double wCoh;
+  final ValueChanged<double> onSepChanged;
+  final ValueChanged<double> onAliChanged;
+  final ValueChanged<double> onCohChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final TextTheme t = Theme.of(context).textTheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0x770B0F14),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.white.withAlpha(12)),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          iconColor: Colors.white.withAlpha(200),
+          collapsedIconColor: Colors.white.withAlpha(160),
+          title: Text(
+            'Advanced',
+            style: t.titleSmall!.copyWith(fontWeight: FontWeight.w800),
+          ),
+          subtitle: Text(
+            'Rule strengths (fine tuning)',
+            style: t.bodySmall!.copyWith(color: Colors.white.withAlpha(148)),
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 4),
+              child: Text(
+                'These are subtle. Try toggling rules first, then use strengths to refine the feel.',
+                style:
+                    t.bodySmall!.copyWith(color: Colors.white.withAlpha(148)),
+              ),
+            ),
+            _LabeledSlider(
+              dense: dense,
+              label: 'Separation Strength',
+              valueLabel: wSep.toStringAsFixed(2),
+              value: wSep,
+              min: 0.0,
+              max: 3.5,
+              divisions: 70,
+              onChanged: onSepChanged,
+            ),
+            _LabeledSlider(
+              dense: dense,
+              label: 'Alignment Strength',
+              valueLabel: wAli.toStringAsFixed(2),
+              value: wAli,
+              min: 0.0,
+              max: 3.5,
+              divisions: 70,
+              onChanged: onAliChanged,
+            ),
+            _LabeledSlider(
+              dense: dense,
+              label: 'Cohesion Strength',
+              valueLabel: wCoh.toStringAsFixed(2),
+              value: wCoh,
+              min: 0.0,
+              max: 3.5,
+              divisions: 70,
+              onChanged: onCohChanged,
+            ),
+          ],
+        ),
       ),
     );
   }

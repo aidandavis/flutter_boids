@@ -16,8 +16,8 @@ class BoidsPainter extends CustomPainter {
   Int32List _colNow = Int32List(0);
   Int32List _colGlow = Int32List(0);
 
-  Float32List _posPrev = Float32List(0);
-  Int32List _colPrev = Int32List(0);
+  Float32List _posTrail = Float32List(0);
+  Int32List _colTrail = Int32List(0);
 
   late final Paint _paint = Paint()..isAntiAlias = true;
   late final Paint _paintAdd = Paint()..isAntiAlias = true;
@@ -41,7 +41,7 @@ class BoidsPainter extends CustomPainter {
     final double s = math.min(w, h);
 
     // Sizing tuned for typical web canvas sizes.
-    final double base = (s * 0.012).clamp(3.5, 10.0);
+    final double base = (s * 0.008).clamp(2.0, 7.4);
     final double tip = base * 1.85;
     final double back = base * 1.10;
     final double wing = base * 0.95;
@@ -53,10 +53,31 @@ class BoidsPainter extends CustomPainter {
     final Float32List y = engine.y;
     final Float32List hx = engine.hx;
     final Float32List hy = engine.hy;
-    final Float32List px = engine.prevX;
-    final Float32List py = engine.prevY;
     final Float32List heat = engine.heat;
     final Int32List colors = engine.colors;
+
+    if (engine.trailsEnabled) {
+      _writeTrails(
+        count: n,
+        outPos: _posTrail,
+        outCol: _colTrail,
+        x: x,
+        y: y,
+        hx: hx,
+        hy: hy,
+        heat: heat,
+        colors: colors,
+        w: w,
+        h: h,
+        s: s,
+      );
+      final Vertices vTrail = Vertices.raw(
+        VertexMode.triangles,
+        _posTrail,
+        colors: _colTrail,
+      );
+      canvas.drawVertices(vTrail, BlendMode.srcOver, _paint);
+    }
 
     _writeTriangles(
       count: n,
@@ -76,34 +97,6 @@ class BoidsPainter extends CustomPainter {
       alphaBase: 0xE8,
       lighten: 0.18,
     );
-
-    if (engine.trailsEnabled) {
-      _writeTriangles(
-        count: n,
-        outPos: _posPrev,
-        outCol: _colPrev,
-        x: px,
-        y: py,
-        hx: hx,
-        hy: hy,
-        heat: heat,
-        colors: colors,
-        w: w,
-        h: h,
-        tip: tip * 0.95,
-        back: back * 0.95,
-        wing: wing * 0.95,
-        alphaBase: 0x48,
-        lighten: 0.06,
-      );
-
-      final Vertices vPrev = Vertices.raw(
-        VertexMode.triangles,
-        _posPrev,
-        colors: _colPrev,
-      );
-      canvas.drawVertices(vPrev, BlendMode.plus, _paintAdd);
-    }
 
     if (engine.glowEnabled) {
       // A subtle "bloom" pass: additive, low alpha.
@@ -133,12 +126,15 @@ class BoidsPainter extends CustomPainter {
     final int posLen = boids * 6; // 3 vertices * (x,y)
     final int colLen = boids * 3; // 3 vertices
 
+    final int trailPosLen = boids * 12; // 6 vertices (2 triangles) * (x,y)
+    final int trailColLen = boids * 6; // 6 vertices
+
     if (_posNow.length != posLen) _posNow = Float32List(posLen);
     if (_colNow.length != colLen) _colNow = Int32List(colLen);
     if (_colGlow.length != colLen) _colGlow = Int32List(colLen);
 
-    if (_posPrev.length != posLen) _posPrev = Float32List(posLen);
-    if (_colPrev.length != colLen) _colPrev = Int32List(colLen);
+    if (_posTrail.length != trailPosLen) _posTrail = Float32List(trailPosLen);
+    if (_colTrail.length != trailColLen) _colTrail = Int32List(trailColLen);
   }
 
   static void _writeTriangles({
@@ -191,6 +187,89 @@ class BoidsPainter extends CustomPainter {
       outCol[c++] = tipColor;
       outCol[c++] = sideColor;
       outCol[c++] = sideColor;
+    }
+  }
+
+  static void _writeTrails({
+    required int count,
+    required Float32List outPos,
+    required Int32List outCol,
+    required Float32List x,
+    required Float32List y,
+    required Float32List hx,
+    required Float32List hy,
+    required Float32List heat,
+    required Int32List colors,
+    required double w,
+    required double h,
+    required double s,
+  }) {
+    // A small, crisp streak along the heading direction.
+    final double lenBase = (s * 0.020).clamp(8.0, 20.0);
+    final double thickness = (s * 0.0014).clamp(0.6, 1.8);
+
+    int p = 0;
+    int c = 0;
+
+    for (int i = 0; i < count; i++) {
+      final double headX = x[i] * w;
+      final double headY = y[i] * h;
+
+      // Direction in screen space (account for aspect ratio).
+      double dx = hx[i] * w;
+      double dy = hy[i] * h;
+      final double dl2 = dx * dx + dy * dy;
+      if (dl2 > 1e-12) {
+        final double inv = 1.0 / math.sqrt(dl2);
+        dx *= inv;
+        dy *= inv;
+      } else {
+        dx = 1.0;
+        dy = 0.0;
+      }
+
+      final double t = heat[i].clamp(0.0, 1.0);
+      final double len = lenBase * (0.55 + 0.55 * t);
+
+      final double tailX = headX - dx * len;
+      final double tailY = headY - dy * len;
+
+      // Perpendicular.
+      final double nx = -dy;
+      final double ny = dx;
+      final double wx = nx * thickness;
+      final double wy = ny * thickness;
+
+      // Alpha is intentionally low; it should read as a streak, not a blur.
+      final int aHead = (0x14 + (t * 0x24)).round().clamp(0, 0x48);
+      final int rgb = colors[i] & 0x00FFFFFF;
+      final int headColor = (aHead << 24) | rgb;
+      const int tailColor = 0x00000000;
+
+      // Two triangles forming a quad:
+      // tailL, headL, headR
+      outPos[p++] = (tailX + wx).toDouble();
+      outPos[p++] = (tailY + wy).toDouble();
+      outPos[p++] = (headX + wx).toDouble();
+      outPos[p++] = (headY + wy).toDouble();
+      outPos[p++] = (headX - wx).toDouble();
+      outPos[p++] = (headY - wy).toDouble();
+
+      outCol[c++] = tailColor;
+      outCol[c++] = headColor;
+      outCol[c++] = headColor;
+
+      // tailL, headR, tailR
+      outPos[p++] = (tailX + wx).toDouble();
+      outPos[p++] = (tailY + wy).toDouble();
+      outPos[p++] = (headX - wx).toDouble();
+      outPos[p++] = (headY - wy).toDouble();
+      outPos[p++] = (tailX - wx).toDouble();
+      outPos[p++] = (tailY - wy).toDouble();
+
+      outCol[c++] = tailColor;
+      outCol[c++] = headColor;
+      outCol[c++] = tailColor;
     }
   }
 
